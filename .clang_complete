@@ -1,0 +1,3 @@
+-I/opt/local/include/eigen3
+-I/Users/guillem/work/soft/seqan-library-2.2.0/include
+-I/opt/local/include/libomp
