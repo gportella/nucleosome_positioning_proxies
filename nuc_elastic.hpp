@@ -52,7 +52,7 @@ double nucElastic(tt1 bpmodel, tt2 nucref, tt3 seq) {
   std::ostringstream sstrs;
   Vector6f sup;
   double energy = 0;
-  for (int i = 0; i < length(seq) - 3; ++i) {
+  for (unsigned long i = 0; i < length(seq) - 3; ++i) {
     Infix<Dna5String>::Type inf = infix(seq, i, i + 4);
     sstrs << inf;
     sup = bpmodel[sstrs.str()].eq.transpose() - nucref.row(i + 1);
@@ -222,7 +222,7 @@ double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref, tt4 id) {
               << NUC_LEN << "bases. Quitting now." << std::endl;
     exit(0);
   }
-  for (unsigned long i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
+  for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
     seq_i = infix(seq, i, i + NUC_LEN);
     double E_nuc = nucElastic(bpmodel, nucref, seq_i);
     if (min_elastic > E_nuc) {
@@ -238,13 +238,10 @@ template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5>
 void do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 ids, tt5 outfile) {
 
   std::vector<double> min_elastic_v;
-  Iterator<StringSet<Dna5String>>::Type it = begin(seqs);
-  Iterator<StringSet<Dna5String>>::Type itEnd = end(seqs);
-  unsigned i = 0;
-  for (; it != itEnd; ++it) {
-    double min_E = do_min_elastic(*it, bpmodel, nucref, ids[i]);
+#pragma omp parallel for
+  for (unsigned i = 0; i < length(seqs); ++i) {
+    double min_E = do_min_elastic(seqs[i], bpmodel, nucref, ids[i]);
     min_elastic_v.emplace_back(min_E);
-    i++;
   }
   // write the result
   dumpResults(outfile, min_elastic_v);
