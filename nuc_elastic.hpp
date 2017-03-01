@@ -213,8 +213,8 @@ template <typename tt1, typename tt2> void dumpResults(tt1 fout, tt2 res) {
 ///////////////////////////////////////////////////////////////////////////////
 // Compute the minimum elastic energy of all possible nucleosomes
 
-template <typename tt1, typename tt2, typename tt3, typename tt4>
-double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref, tt4 id) {
+template <typename tt1, typename tt2, typename tt3>
+double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref) {
   Infix<Dna5String>::Type seq_i;
   double min_elastic = 10000000; // overkill to use std::numeric_limits::max()
   for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
@@ -229,14 +229,14 @@ double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref, tt4 id) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5>
-void do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 ids, tt5 outfile) {
+template <typename tt1, typename tt2, typename tt3, typename tt4>
+void do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 outfile) {
 
   std::vector<double> min_elastic_v;
 #pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
     if (length(seqs[i]) >= NUC_LEN) {
-      double min_E = do_min_elastic(seqs[i], bpmodel, nucref, ids[i]);
+      double min_E = do_min_elastic(seqs[i], bpmodel, nucref);
       min_elastic_v.emplace_back(min_E);
     }
   }

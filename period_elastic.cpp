@@ -92,7 +92,7 @@ int main(int argc, char const **argv) {
     tetra tetrabp;
     if (loadBPModel(bpmodel)) {
       Eigen::MatrixXf refnuc = loadRefNuc();
-      do_all_elastic(bpmodel, refnuc, dseqs, ids, parseOptions.outFileName);
+      do_all_elastic(bpmodel, refnuc, dseqs, parseOptions.outFileName);
     } else {
       exit(1);
     }
