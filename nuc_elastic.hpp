@@ -217,11 +217,6 @@ template <typename tt1, typename tt2, typename tt3, typename tt4>
 double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref, tt4 id) {
   Infix<Dna5String>::Type seq_i;
   double min_elastic = 10000000; // overkill to use std::numeric_limits::max()
-  if (length(seq) < NUC_LEN) {
-    std::cerr << "Eps, sequence with id " << id << " is shorter than "
-              << NUC_LEN << " bases. Skipping." << std::endl;
-    return 0;
-  }
   for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
     seq_i = infix(seq, i, i + NUC_LEN);
     double E_nuc = nucElastic(bpmodel, nucref, seq_i);
@@ -240,8 +235,8 @@ void do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 ids, tt5 outfile) {
   std::vector<double> min_elastic_v;
 #pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
-    double min_E = do_min_elastic(seqs[i], bpmodel, nucref, ids[i]);
-    if (min_E != 0) {
+    if (length(seqs[i]) >= NUC_LEN) {
+      double min_E = do_min_elastic(seqs[i], bpmodel, nucref, ids[i]);
       min_elastic_v.emplace_back(min_E);
     }
   }
