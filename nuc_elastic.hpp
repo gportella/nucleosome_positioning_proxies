@@ -17,6 +17,8 @@
 #include <utility>
 #include <vector>
 
+#define NUC_LEN 146
+
 using namespace seqan;
 
 typedef Eigen::Matrix<float, 6, 6> Matrix6f;
@@ -112,6 +114,11 @@ Eigen::MatrixXf loadRefNuc() {
   int i = 0;
   int j = 0;
 
+  if (!file_exists(FILE_REFNUC)) {
+    std::cerr << "Error: File " << FILE_REFNUC << " does not exist"
+              << std::endl;
+    exit(1);
+  }
   // a bit dangerous, we should make sure
   // that there are no missing values, or too many
   // as it will segfault. I don't want to put an if
@@ -192,5 +199,53 @@ bool loadBPModel(std::map<std::string, tetra> &bpmodel) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+// Write the results vector
+
+template <typename tt1, typename tt2> void dumpResults(tt1 fout, tt2 res) {
+  std::ofstream file;
+  file.open(toCString(fout));
+  for (unsigned i = 0; i < res.size(); ++i) {
+    file << i << " " << res[i] << std::endl;
+  }
+  file.close();
+}
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Compute the minimum elastic energy of all possible nucleosomes
+
 template <typename tt1, typename tt2, typename tt3, typename tt4>
-double do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 cond) {}
+double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref, tt4 id) {
+  Infix<Dna5String>::Type seq_i;
+  double min_elastic = 10000000; // overkill to use std::numeric_limits::max()
+  if (length(seq) < NUC_LEN) {
+    std::cerr << "Eps, sequence with id " << id << " is shorter than "
+              << NUC_LEN << "bases. Quitting now." << std::endl;
+    exit(0);
+  }
+  for (unsigned long i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
+    seq_i = infix(seq, i, i + NUC_LEN);
+    double E_nuc = nucElastic(bpmodel, nucref, seq_i);
+    if (min_elastic > E_nuc) {
+      min_elastic = E_nuc;
+    }
+  }
+  return min_elastic;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5>
+void do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 ids, tt5 outfile) {
+
+  std::vector<double> min_elastic_v;
+  Iterator<StringSet<Dna5String>>::Type it = begin(seqs);
+  Iterator<StringSet<Dna5String>>::Type itEnd = end(seqs);
+  unsigned i = 0;
+  for (; it != itEnd; ++it) {
+    double min_E = do_min_elastic(*it, bpmodel, nucref, ids[i]);
+    min_elastic_v.emplace_back(min_E);
+    i++;
+  }
+  // write the result
+  dumpResults(outfile, min_elastic_v);
+}
