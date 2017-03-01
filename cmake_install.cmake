@@ -1,4 +1,4 @@
-# Install script for directory: /Users/guillem/work/soft/genomics/Seqan_coding/find_periodic
+# Install script for directory: /Users/guillem/work/repos/bioinformatic/periodic_elastic
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -35,5 +35,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/Users/guillem/work/soft/genomics/Seqan_coding/find_periodic/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/Users/guillem/work/repos/bioinformatic/periodic_elastic/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

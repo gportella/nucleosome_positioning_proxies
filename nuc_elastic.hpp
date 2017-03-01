@@ -219,8 +219,8 @@ double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref, tt4 id) {
   double min_elastic = 10000000; // overkill to use std::numeric_limits::max()
   if (length(seq) < NUC_LEN) {
     std::cerr << "Eps, sequence with id " << id << " is shorter than "
-              << NUC_LEN << "bases. Quitting now." << std::endl;
-    exit(0);
+              << NUC_LEN << " bases. Skipping." << std::endl;
+    return 0;
   }
   for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
     seq_i = infix(seq, i, i + NUC_LEN);
@@ -241,7 +241,9 @@ void do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 ids, tt5 outfile) {
 #pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
     double min_E = do_min_elastic(seqs[i], bpmodel, nucref, ids[i]);
-    min_elastic_v.emplace_back(min_E);
+    if (min_E != 0) {
+      min_elastic_v.emplace_back(min_E);
+    }
   }
   // write the result
   dumpResults(outfile, min_elastic_v);
