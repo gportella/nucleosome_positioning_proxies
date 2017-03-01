@@ -1,1 +1,0 @@
-/opt/local/bin/clang++-mp-3.9    -std=c++14  -g -I/opt/local/include/libomp  -I/opt/local/include/eigen3 -fopenmp -Wall -Wextra -O3  -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/period_elastic.dir/period_elastic.cpp.o  -o period_elastic /usr/lib/libz.dylib /opt/local/lib/libboost_regex-mt.dylib 
