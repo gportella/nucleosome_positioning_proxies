@@ -53,7 +53,8 @@ int main(int argc, char const **argv) {
   StringSet<CharString> quals;
   SeqFileIn seqFileIn;
   bool b_fastq = false;
-  std::map<std::string, tetra> bpmodel;
+  std::map<std::string, NNmodel> tetra_bpmodel;
+  std::map<std::string, NNmodel> dinuc_bpmodel;
 
   conditionPeriodic cond = {parseOptions.cutoff, parseOptions.b_elastic,
                             parseOptions.b_verbose};
@@ -86,13 +87,17 @@ int main(int argc, char const **argv) {
     return 1;
   }
 
+  std::string fc_tetra = "stif_bsc1_k_avg_miniabc.dat";
+  std::string fc_dinuc = "stif_bsc1_k_avg_miniabc_dinuc.dat";
   if (!cond.b_elastic) {
     do_all_periodic(dseqs, cond);
   } else {
-    tetra tetrabp;
-    if (loadBPModel(bpmodel)) {
+    NNmodel tetrabp;
+    NNmodel dinucp;
+    if (loadBPModel(tetra_bpmodel, fc_dinuc) &&
+        loadBPModel(dinuc_bpmodel, fc_dinuc)) {
       Eigen::MatrixXf refnuc = loadRefNuc();
-      do_all_elastic(bpmodel, refnuc, dseqs, parseOptions.outFileName);
+      do_all_elastic(tetra_bpmodel, refnuc, dseqs, parseOptions.outFileName);
     } else {
       exit(1);
     }

@@ -27,7 +27,7 @@ typedef Eigen::Matrix<float, 6, 1> Vector6f;
 typedef struct my_bpmodel {
   Matrix6f fct;
   Vector6f eq;
-} tetra;
+} NNmodel;
 
 void split(const std::string &s, char delim, std::vector<std::string> &elems) {
   std::stringstream ss(s);
@@ -59,6 +59,7 @@ double nucElastic(tt1 bpmodel, tt2 nucref, tt3 seq) {
     energy += 0.5 * sup.transpose() * bpmodel[sstrs.str()].fct * sup;
     sstrs.str(std::string()); // clear the contents of sstr
   }
+  // TODO --> add first and last bp as dinucleotides
   return energy; /// (double)length(seq);
 }
 
@@ -136,20 +137,21 @@ Eigen::MatrixXf loadRefNuc() {
   return av;
 }
 
-// std::map<std::string, tetra> loadBPModel() {
-bool loadBPModel(std::map<std::string, tetra> &bpmodel) {
+// std::map<std::string, NNmodel> loadBPModel() {
+template <typename tt1, typename tt2>
+bool loadBPModel(tt1 &bpmodel, tt2 FILE_BP) {
 
-  std::string FILE_BP = "stif_bsc1_k_avg_miniabc.dat";
+  // std::string FILE_BP = "stif_bsc1_k_avg_miniabc.dat";
   std::ifstream bp(FILE_BP);
   std::string line;
-  // std::map<std::string, tetra> bpmodel;
+  // std::map<std::string, NNmodel> bpmodel;
   int count = 0;
   int token_c = 0;
 
   std::vector<std::string> tokens;
 
   size_t pos = 0;
-  tetra bpm;
+  NNmodel bpm;
   std::string delimiter = "  ";
   std::string token;
   std::string key;
