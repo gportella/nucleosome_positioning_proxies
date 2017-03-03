@@ -69,20 +69,26 @@ int main(int argc, char const **argv) {
   }
 
   checkArguments(cond);
-  // open sequence file or randomly genereate one
-  if (!open(seqFileIn, toCString(sequenceFileName))) {
-    std::cerr << "ERROR: Cound not open input file (sequences).\n";
-    return 1;
-  }
-  try {
-    if (b_fastq) {
-      readRecords(ids, dseqs, quals, seqFileIn);
-    } else {
-      readRecords(ids, dseqs, seqFileIn);
+  // randomly genereate or read them
+  if (parseOptions.b_random) {
+    for (unsigned i = 0; i < parseOptions.num_rand; ++i) {
+      appendValue(dseqs, genRandSeq(NUC_LEN));
     }
-  } catch (Exception const &e) {
-    std::cout << "ERROR: " << e.what() << std::endl;
-    return 1;
+  } else {
+    if (!open(seqFileIn, toCString(sequenceFileName))) {
+      std::cerr << "ERROR: Cound not open input file (sequences).\n";
+      return 1;
+    }
+    try {
+      if (b_fastq) {
+        readRecords(ids, dseqs, quals, seqFileIn);
+      } else {
+        readRecords(ids, dseqs, seqFileIn);
+      }
+    } catch (Exception const &e) {
+      std::cout << "ERROR: " << e.what() << std::endl;
+      return 1;
+    }
   }
 
   std::string fc_tetra = "stif_bsc1_k_avg_miniabc.dat";

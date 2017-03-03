@@ -15,9 +15,11 @@ typedef struct my_conditions {
 struct Options {
   bool b_verbose;
   bool b_elastic;
+  bool b_random;
   CharString needlesFileName;
   CharString outFileName;
   unsigned int cutoff;
+  unsigned int num_rand;
 
   // I guess this is how to initialize
   Options() : b_verbose(false), b_elastic(false) {}
@@ -51,9 +53,18 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   addOption(parser, ArgParseOption("elastic", "compute_elastic",
                                    "Compute the maximum elastic "
                                    "energy for each sequence."));
+  addOption(parser, ArgParseOption("random", "random_seq",
+                                   "Generate random sequences "
+                                   "instead of reading input."));
+  addOption(
+      parser,
+      ArgParseOption("nr", "num_rand",
+                     "How many random sequences of 147 base pairs to generate",
+                     seqan::ArgParseArgument::INTEGER, "INTEGER"));
   setDefaultValue(parser, "result_file", "out_analysis.txt");
   setValidValues(parser, "sequence_file", "fna fa fq fna.gz fasta fa.gz fq.gz");
   setDefaultValue(parser, "cutoff", "50");
+  setDefaultValue(parser, "num_rand", "1000");
   setValidValues(parser, "result_file", "txt");
 
   // Parse command line.
@@ -69,8 +80,10 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   getOptionValue(parseOptions.needlesFileName, parser, "sequence_file");
   getOptionValue(parseOptions.outFileName, parser, "result_file");
   getOptionValue(parseOptions.cutoff, parser, "cutoff");
+  getOptionValue(parseOptions.num_rand, parser, "num_rand");
   parseOptions.b_verbose = isSet(parser, "be_verbose");
   parseOptions.b_elastic = isSet(parser, "compute_elastic");
+  parseOptions.b_random = isSet(parser, "random_seq");
 
   return ArgumentParser::PARSE_OK;
 }

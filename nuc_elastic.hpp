@@ -46,6 +46,46 @@ inline bool file_exists(const std::string &name) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Functions to get random sequence
+///////////////////////////////////////////////////////////////////////////////
+
+typedef std::vector<char> char_array;
+char_array charset() {
+  // Change this to suit
+  return char_array({'A', 'T', 'C', 'G'});
+};
+
+// given a function that generates a random character,
+// return a string of the requested length
+std::string random_string(size_t length, std::function<char(void)> rand_char) {
+  std::string str(length, 0);
+  std::generate_n(str.begin(), length, rand_char);
+  return str;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+Dna5String genRandSeq(int lbp) {
+  // 0) create the character set.
+  //   yes, you can use an array here,
+  //   but a function is cleaner and more flexible
+  const auto ch_set = charset();
+
+  // 1) create a non-deterministic random number generator
+  std::default_random_engine rng(std::random_device{}());
+  // 2) create a random number "shaper" that will give
+  //   us uniformly distributed indices into the character set
+  std::uniform_int_distribution<> dist(0, ch_set.size() - 1);
+  // 3) create a function that ties them together, to get:
+  //   a non-deterministic uniform distribution from the
+  //   character set of your choice.
+  auto randchar = [ch_set, &dist, &rng]() { return ch_set[dist(rng)]; };
+
+  Dna5String seqout = random_string(lbp, randchar);
+  return seqout;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2, typename tt3, typename tt4>
 double nucElastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seq) {
@@ -247,12 +287,12 @@ template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5>
 void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
                     tt5 outfile) {
 
-  std::vector<double> min_elastic_v;
+  std::vector<double> min_elastic_v(length(seqs), 0.0);
 #pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
     if (length(seqs[i]) >= NUC_LEN) {
       double min_E = do_min_elastic(seqs[i], tetra_model, di_model, nucref);
-      min_elastic_v.emplace_back(min_E);
+      min_elastic_v[i] = min_E;
     }
   }
   // write the result
