@@ -30,8 +30,6 @@ int main(int argc, char const **argv) {
 
   // OpenMP setting the maximum number of threads possible
   int nProcessors = omp_get_max_threads();
-  // for now
-  nProcessors = 2;
   omp_set_num_threads(nProcessors);
 
   // Parse the command line
