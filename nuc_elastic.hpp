@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-#define NUC_LEN 146
+#define NUC_LEN 147
 
 using namespace seqan;
 
@@ -47,20 +47,32 @@ inline bool file_exists(const std::string &name) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2, typename tt3>
-double nucElastic(tt1 bpmodel, tt2 nucref, tt3 seq) {
+template <typename tt1, typename tt2, typename tt3, typename tt4>
+double nucElastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seq) {
   std::ostringstream sstrs;
   Vector6f sup;
+  unsigned l_seq = length(seq);
   double energy = 0;
-  for (unsigned long i = 0; i < length(seq) - 3; ++i) {
+  for (unsigned long i = 0; i < l_seq - 3; ++i) {
     Infix<Dna5String>::Type inf = infix(seq, i, i + 4);
     sstrs << inf;
-    sup = bpmodel[sstrs.str()].eq.transpose() - nucref.row(i + 1);
-    energy += 0.5 * sup.transpose() * bpmodel[sstrs.str()].fct * sup;
+    sup = tetra_model[sstrs.str()].eq.transpose() - nucref.row(i + 1);
+    energy += 0.5 * sup.transpose() * tetra_model[sstrs.str()].fct * sup;
     sstrs.str(std::string()); // clear the contents of sstr
   }
-  // TODO --> add first and last bp as dinucleotides
-  return energy; /// (double)length(seq);
+  // add first and last bp as dinucleotides
+  sstrs.str(std::string()); // clear the contents of sstr
+  Infix<Dna5String>::Type inf = infix(seq, 0, 2);
+  sstrs << inf;
+  sup = di_model[sstrs.str()].eq.transpose() - nucref.row(0);
+  energy += 0.5 * sup.transpose() * di_model[sstrs.str()].fct * sup;
+  inf = infix(seq, l_seq - 2, l_seq);
+  sstrs.str(std::string()); // clear the contents of sstr
+  sstrs << inf;
+  sup = di_model[sstrs.str()].eq.transpose() - nucref.row(l_seq - 2);
+  energy += 0.5 * sup.transpose() * di_model[sstrs.str()].fct * sup;
+  sstrs.str(std::string()); // clear the contents of sstr
+  return energy;            /// (double)length(seq);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -215,13 +227,13 @@ template <typename tt1, typename tt2> void dumpResults(tt1 fout, tt2 res) {
 ///////////////////////////////////////////////////////////////////////////////
 // Compute the minimum elastic energy of all possible nucleosomes
 
-template <typename tt1, typename tt2, typename tt3>
-double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref) {
+template <typename tt1, typename tt2, typename tt3, typename tt4>
+double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref) {
   Infix<Dna5String>::Type seq_i;
   double min_elastic = 10000000; // overkill to use std::numeric_limits::max()
   for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
     seq_i = infix(seq, i, i + NUC_LEN);
-    double E_nuc = nucElastic(bpmodel, nucref, seq_i);
+    double E_nuc = nucElastic(tetra_model, di_model, nucref, seq_i);
     if (min_elastic > E_nuc) {
       min_elastic = E_nuc;
     }
@@ -231,14 +243,15 @@ double do_min_elastic(tt1 seq, tt2 bpmodel, tt3 nucref) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2, typename tt3, typename tt4>
-void do_all_elastic(tt1 bpmodel, tt2 nucref, tt3 seqs, tt4 outfile) {
+template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5>
+void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
+                    tt5 outfile) {
 
   std::vector<double> min_elastic_v;
 #pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
     if (length(seqs[i]) >= NUC_LEN) {
-      double min_E = do_min_elastic(seqs[i], bpmodel, nucref);
+      double min_E = do_min_elastic(seqs[i], tetra_model, di_model, nucref);
       min_elastic_v.emplace_back(min_E);
     }
   }

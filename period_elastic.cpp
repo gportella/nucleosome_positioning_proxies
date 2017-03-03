@@ -94,10 +94,11 @@ int main(int argc, char const **argv) {
   } else {
     NNmodel tetrabp;
     NNmodel dinucp;
-    if (loadBPModel(tetra_bpmodel, fc_dinuc) &&
+    if (loadBPModel(tetra_bpmodel, fc_tetra) &&
         loadBPModel(dinuc_bpmodel, fc_dinuc)) {
       Eigen::MatrixXf refnuc = loadRefNuc();
-      do_all_elastic(tetra_bpmodel, refnuc, dseqs, parseOptions.outFileName);
+      do_all_elastic(tetra_bpmodel, dinuc_bpmodel, refnuc, dseqs,
+                     parseOptions.outFileName);
     } else {
       exit(1);
     }
