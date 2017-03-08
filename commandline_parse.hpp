@@ -24,7 +24,8 @@ struct Options {
   unsigned int num_rand;
 
   // I guess this is how to initialize
-  Options() : b_verbose(false), b_elastic(false) {}
+  Options()
+      : b_verbose(false), b_elastic(false), b_random(false), b_nuccore(false) {}
 };
 
 ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
