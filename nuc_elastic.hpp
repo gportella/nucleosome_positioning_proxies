@@ -331,7 +331,7 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
                     tt5 outfile, tt6 cond) {
 
   std::vector<double> min_elastic_v(length(seqs), 0.0);
-  if (cond.b_nuccore) {
+  if (!cond.b_nuccore) {
 #pragma omp parallel for
     for (unsigned i = 0; i < length(seqs); ++i) {
       if (length(seqs[i]) >= NUC_LEN) {
