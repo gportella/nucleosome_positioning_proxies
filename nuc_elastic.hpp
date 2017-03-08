@@ -18,6 +18,7 @@
 #include <vector>
 
 #define NUC_LEN 147
+#define NUC_CORE 74
 
 using namespace seqan;
 
@@ -117,33 +118,28 @@ double nucElastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seq) {
   return energy;            /// (double)length(seq);
 }
 
-template <typename tt1, typename tt2, typename tt3, typename tt4>
-double nucElastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seq,
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+template <typename tt1, typename tt2, typename tt3>
+double nucElastic(tt1 tetra_model, tt2 nucref, tt3 seq,
                   Tag_NucCore const & /*Tag*/) {
   std::ostringstream sstrs;
   Vector6f sup;
-  unsigned l_seq = length(seq);
+  // core bp is hardcoded to 74, which is the value that has been reported to
+  // determine binding of nucleosomes in-vitro, according to the Van Noort
+  // sequence predictor paper. 10.1073/pnas.1205659109
+  unsigned int core_b = (unsigned int)std::ceil(NUC_LEN / 2 - NUC_CORE / 2);
+  unsigned int core_e = (unsigned int)std::ceil(NUC_LEN / 2 + NUC_CORE / 2);
   double energy = 0;
-  for (unsigned long i = 0; i < l_seq - 3; ++i) {
+  for (unsigned i = core_b; i < core_e; ++i) {
     Infix<Dna5String>::Type inf = infix(seq, i, i + 4);
     sstrs << inf;
     sup = tetra_model[sstrs.str()].eq.transpose() - nucref.row(i + 1);
     energy += 0.5 * sup.transpose() * tetra_model[sstrs.str()].fct * sup;
     sstrs.str(std::string()); // clear the contents of sstr
   }
-  // add first and last bp as dinucleotides
-  sstrs.str(std::string()); // clear the contents of sstr
-  Infix<Dna5String>::Type inf = infix(seq, 0, 2);
-  sstrs << inf;
-  sup = di_model[sstrs.str()].eq.transpose() - nucref.row(0);
-  energy += 0.5 * sup.transpose() * di_model[sstrs.str()].fct * sup;
-  inf = infix(seq, l_seq - 2, l_seq);
-  sstrs.str(std::string()); // clear the contents of sstr
-  sstrs << inf;
-  sup = di_model[sstrs.str()].eq.transpose() - nucref.row(l_seq - 2);
-  energy += 0.5 * sup.transpose() * di_model[sstrs.str()].fct * sup;
-  sstrs.str(std::string()); // clear the contents of sstr
-  return energy;            /// (double)length(seq);
+  return energy;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -312,15 +308,14 @@ double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref) {
   return min_elastic;
 }
 
-template <typename tt1, typename tt2, typename tt3, typename tt4>
-double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref,
+template <typename tt1, typename tt2, typename tt3>
+double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,
                       Tag_NucCore const & /*Tag*/) {
   Infix<Dna5String>::Type seq_i;
   double min_elastic = 10000000; // overkill to use std::numeric_limits::max()
   for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
     seq_i = infix(seq, i, i + NUC_LEN);
-    double E_nuc =
-        nucElastic(tetra_model, di_model, nucref, seq_i, Tag_NucCore());
+    double E_nuc = nucElastic(tetra_model, nucref, seq_i, Tag_NucCore());
     if (min_elastic > E_nuc) {
       min_elastic = E_nuc;
     }
@@ -348,8 +343,8 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
 #pragma omp parallel for
     for (unsigned i = 0; i < length(seqs); ++i) {
       if (length(seqs[i]) >= NUC_LEN) {
-        double min_E = do_min_elastic(seqs[i], tetra_model, di_model, nucref,
-                                      Tag_NucCore());
+        double min_E =
+            do_min_elastic(seqs[i], tetra_model, nucref, Tag_NucCore());
         min_elastic_v[i] = min_E;
       }
     }
