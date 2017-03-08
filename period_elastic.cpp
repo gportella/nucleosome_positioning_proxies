@@ -55,7 +55,7 @@ int main(int argc, char const **argv) {
   std::map<std::string, NNmodel> dinuc_bpmodel;
 
   conditionPeriodic cond = {parseOptions.cutoff, parseOptions.b_elastic,
-                            parseOptions.b_verbose};
+                            parseOptions.b_verbose, parseOptions.b_nuccore};
 
   if (b_verbose) {
     std::cout << "Set " << nProcessors << " OpenMP threads" << std::endl;
@@ -102,7 +102,7 @@ int main(int argc, char const **argv) {
         loadBPModel(dinuc_bpmodel, fc_dinuc)) {
       Eigen::MatrixXf refnuc = loadRefNuc();
       do_all_elastic(tetra_bpmodel, dinuc_bpmodel, refnuc, dseqs,
-                     parseOptions.outFileName);
+                     parseOptions.outFileName, cond);
     } else {
       exit(1);
     }

@@ -10,12 +10,14 @@ typedef struct my_conditions {
   unsigned int cutoff;
   bool b_elastic;
   bool b_verbose;
+  bool b_nuccore;
 } conditionPeriodic;
 
 struct Options {
   bool b_verbose;
   bool b_elastic;
   bool b_random;
+  bool b_nuccore;
   CharString needlesFileName;
   CharString outFileName;
   unsigned int cutoff;
@@ -53,6 +55,10 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   addOption(parser, ArgParseOption("elastic", "compute_elastic",
                                    "Compute the maximum elastic "
                                    "energy for each sequence."));
+  addOption(parser,
+            ArgParseOption("nuccore", "only_nuccore",
+                           "Use a window of 74 bp centered  "
+                           "at the dyad to compute nucleosome energy."));
   addOption(parser, ArgParseOption("random", "random_seq",
                                    "Generate random sequences "
                                    "instead of reading input."));
@@ -82,6 +88,7 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   getOptionValue(parseOptions.cutoff, parser, "cutoff");
   getOptionValue(parseOptions.num_rand, parser, "num_rand");
   parseOptions.b_verbose = isSet(parser, "be_verbose");
+  parseOptions.b_nuccore = isSet(parser, "only_nuccore");
   parseOptions.b_elastic = isSet(parser, "compute_elastic");
   parseOptions.b_random = isSet(parser, "random_seq");
 
