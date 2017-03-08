@@ -36,8 +36,8 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   addDescription(parser, "Finds dinucleotide periodicity "
                          "for AA/TA/AT, or compute nucleosome elastic energy");
   addUsageLine(parser, "[\\fIOPTIONS\\fP] ");
-  setVersion(parser, "0.1");
-  setDate(parser, "February 2017");
+  setVersion(parser, "0.3");
+  setDate(parser, "March 2017");
 
   // Define Options
   addOption(parser, ArgParseOption("i", "sequence_file", "A fasta input file "
@@ -53,7 +53,7 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   addOption(parser, ArgParseOption("v", "be_verbose", "Be verbose in "
                                                       "what you do."));
   addOption(parser, ArgParseOption("elastic", "compute_elastic",
-                                   "Compute the maximum elastic "
+                                   "Compute the minimum elastic "
                                    "energy for each sequence."));
   addOption(parser,
             ArgParseOption("nuccore", "only_nuccore",
