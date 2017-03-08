@@ -31,7 +31,7 @@ struct Options {
 ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
                                              char const **argv) {
   // Setup ArgumentParser.
-  ArgumentParser parser("slider");
+  ArgumentParser parser("period_elastic");
   setShortDescription(
       parser, "Finds dinucleotide periodicity | nucleosome elastic energy.");
   addDescription(parser, "Finds dinucleotide periodicity "
