@@ -9,3 +9,4 @@ compile_commands.json
 CTestTestfile.cmake
 NucpredR
 period_elastic
+test.fasta

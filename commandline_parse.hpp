@@ -9,6 +9,7 @@ using namespace seqan;
 typedef struct my_conditions {
   unsigned int cutoff;
   bool b_elastic;
+  bool b_vnoort;
   bool b_verbose;
   bool b_nuccore;
 } conditionPeriodic;
@@ -16,6 +17,7 @@ typedef struct my_conditions {
 struct Options {
   bool b_verbose;
   bool b_elastic;
+  bool b_vnoort;
   bool b_random;
   bool b_nuccore;
   CharString needlesFileName;
@@ -25,7 +27,8 @@ struct Options {
 
   // I guess this is how to initialize
   Options()
-      : b_verbose(false), b_elastic(false), b_random(false), b_nuccore(false) {}
+      : b_verbose(false), b_elastic(false), b_vnoort(false), b_random(false),
+        b_nuccore(false) {}
 };
 
 ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
@@ -60,6 +63,10 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
             ArgParseOption("nuccore", "only_nuccore",
                            "Use a window of 74 bp centered  "
                            "at the dyad to compute nucleosome energy."));
+  addOption(parser,
+            ArgParseOption("vnoort", "do_vannoort",
+                           "Use van Noort's sequence-based prediction "
+                           "to compute nucleosome occupancy and free energy."));
   addOption(parser, ArgParseOption("random", "random_seq",
                                    "Generate random sequences "
                                    "instead of reading input."));
@@ -91,6 +98,7 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   parseOptions.b_verbose = isSet(parser, "be_verbose");
   parseOptions.b_nuccore = isSet(parser, "only_nuccore");
   parseOptions.b_elastic = isSet(parser, "compute_elastic");
+  parseOptions.b_vnoort = isSet(parser, "do_vannoort");
   parseOptions.b_random = isSet(parser, "random_seq");
 
   return ArgumentParser::PARSE_OK;

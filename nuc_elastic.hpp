@@ -1,3 +1,5 @@
+#ifndef NUC_ELASTIC_H
+#define NUC_ELASTIC_H
 #include <Eigen/Dense>
 #include <fstream>
 #include <iostream>
@@ -352,3 +354,5 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
   // write the result
   dumpResults(outfile, min_elastic_v);
 }
+
+#endif /* end protective inclusion */

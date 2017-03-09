@@ -1,6 +1,7 @@
 #include "commandline_parse.hpp"
 #include "do_periodic.hpp"
 #include "nuc_elastic.hpp"
+#include "nuc_vannoort.hpp"
 #include <Eigen/Dense>
 #include <functional>
 #include <iostream>
@@ -55,7 +56,8 @@ int main(int argc, char const **argv) {
   std::map<std::string, NNmodel> dinuc_bpmodel;
 
   conditionPeriodic cond = {parseOptions.cutoff, parseOptions.b_elastic,
-                            parseOptions.b_verbose, parseOptions.b_nuccore};
+                            parseOptions.b_vnoort, parseOptions.b_verbose,
+                            parseOptions.b_nuccore};
 
   if (b_verbose) {
     std::cout << "Set " << nProcessors << " OpenMP threads" << std::endl;
@@ -93,8 +95,10 @@ int main(int argc, char const **argv) {
 
   std::string fc_tetra = "stif_bsc1_k_avg_miniabc.dat";
   std::string fc_dinuc = "stif_bsc1_k_avg_miniabc_dinuc.dat";
-  if (!cond.b_elastic) {
+  if (!cond.b_elastic && !cond.b_vnoort) {
     do_all_periodic(dseqs, cond);
+  } else if (cond.b_vnoort) {
+    do_vannoort(dseqs, cond);
   } else {
     NNmodel tetrabp;
     NNmodel dinucp;
