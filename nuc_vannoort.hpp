@@ -26,7 +26,8 @@ Eigen::VectorXf return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div = 1) {
   return vect;
 }
 
-template <typename tt1, typename tt2> void do_vannoort(tt1 seqs, tt2 cond) {
+template <typename tt1, typename tt2>
+std::vector<std::vector<Eigen::VectorXf>> getweights(tt1 seqs, tt2 cond) {
   // There might not be an actuall reason to use Eigen here
   // but since I need it anyway for nuc_elastic, I use it
 
@@ -56,13 +57,56 @@ template <typename tt1, typename tt2> void do_vannoort(tt1 seqs, tt2 cond) {
   Eigen::VectorXf TG = TC;
   Eigen::VectorXf TT = TA;
 
-  std::vector<Eigen::VectorXf> vects_As = {AA, AC, AG, AT};
-  std::vector<Eigen::VectorXf> vects_Cs = {CA, CC, CG, CT};
-  std::vector<Eigen::VectorXf> vects_Gs = {GA, GC, GG, GT};
-  std::vector<Eigen::VectorXf> vects_Ts = {TA, TC, TG, TT};
+  std::vector<Eigen::VectorXf> v_As = {AA, AC, AG, AT};
+  std::vector<Eigen::VectorXf> v_Cs = {CA, CC, CG, CT};
+  std::vector<Eigen::VectorXf> v_Gs = {GA, GC, GG, GT};
+  std::vector<Eigen::VectorXf> v_Ts = {TA, TC, TG, TT};
+  std::vector<std::vector<Eigen::VectorXf>> weights = {v_As, v_Cs, v_Gs, v_Ts};
 
-  for (unsigned i = 0; i < window; ++i) {
-    std::cout << vects_As[1](i) << std::endl;
+  return weights;
+}
+
+/*
+template <typename tt1> int base2index(tt1 b) {
+  switch (b) {
+  case 'A':
+    return 0;
+  case 'C':
+    return 1;
+  case 'G':
+    return 2;
+  case 'T':
+    return 3;
+  default:
+    std::cout << "Invalid nucleotide" << std::endl;
+    exit(0);
+  }
+}
+*/
+
+template <typename tt1, typename tt2> void do_vannoort(tt1 seq, tt2 cond) {
+  unsigned window = 74;
+  for (unsigned i = 0; i < length(seq) - window; ++i) {
+    float p_s_f = 1.0;
+    float p_s_r = 1.0;
+    for (unsigned s = 0; s < window; ++s) {
+      unsigned ii = (unsigned)ordValue(seq[i + s]);
+      unsigned jj = (unsigned)ordValue(seq[i + s + 1]);
+      // Segfault here?? Check logic
+      unsigned ri = 3 - (unsigned)ordValue(seq[i + window - s]);
+      unsigned rj = 3 - (unsigned)ordValue(seq[i + window - s + 1]);
+    }
+  }
+}
+
+template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
+
+  std::vector<std::vector<Eigen::VectorXf>> weights = getweights(seqs, cond);
+  //#pragma omp parallel for
+  for (unsigned i = 0; i < length(seqs); ++i) {
+    if (length(seqs[i]) >= NUC_LEN) {
+      do_vannoort(seqs[i], cond);
+    }
   }
 }
 
