@@ -14,13 +14,50 @@
 #include "nuc_elastic.hpp"
 #include <math.h>
 
-#define PI 3.14159265
+//#define PI 3.1415926535897932384626L
+
+class boxFIR {
+  int numCoeffs;         // MUST be > 0
+  std::vector<double> b; // Filter coefficients
+  std::vector<double> m; // Filter memories
+
+public:
+  boxFIR(int _numCoeffs) : numCoeffs(_numCoeffs) {
+    if (numCoeffs < 1)
+      numCoeffs = 1; // Must be > 0 or bad stuff happens
+
+    double val = 1. / numCoeffs;
+    for (int ii = 0; ii < numCoeffs; ++ii) {
+      b.push_back(val);
+      m.push_back(0.);
+    }
+  }
+
+  void filter(std::vector<double> &a) {
+    double output;
+
+    for (int nn = 0; nn < a.size(); ++nn) {
+      // Apply smoothing filter to signal
+      output = 0;
+      m[0] = a[nn];
+      for (int ii = 0; ii < numCoeffs; ++ii) {
+        output += b[ii] * m[ii];
+      }
+
+      // Reshuffle memories
+      for (int ii = numCoeffs - 1; ii != 0; --ii) {
+        m[ii] = m[ii - 1];
+      }
+      a[nn] = output;
+    }
+  }
+};
 
 template <typename tt1, typename tt2, typename tt3, typename tt4>
-Eigen::VectorXd return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div = 1) {
+Eigen::VectorXd return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div) {
   Eigen::VectorXd vect(w);
   for (unsigned i = 0; i < w; ++i) {
-    vect(i) = 0.25 + b * sin(2 * PI * i / p) / div;
+    vect(i) = 0.25 + b * sin(2 * M_PI * i / p) / div;
   }
 
   return vect;
@@ -34,26 +71,26 @@ std::vector<std::vector<Eigen::VectorXd>> getweights(tt1 cond) {
   unsigned window = 74;
   float period = 10.1;
   float amp = 0.2;
-  Eigen::VectorXd AA = return_dinuc_weight(window, amp, period, 1);
-  Eigen::VectorXd AC = return_dinuc_weight(window, -amp, period, 3);
+  Eigen::VectorXd AA = return_dinuc_weight(window, amp, period, 1.0);
+  Eigen::VectorXd AC = return_dinuc_weight(window, -amp, period, 3.0);
   Eigen::VectorXd AG = AC;
   Eigen::VectorXd AT = AC;
 
   // the one below is actually 0.25 for all, decide if you want to initialize
   // to that, or compute 0*sinus to have a more compact way. I hope the
   // compiler catches that b=0
-  Eigen::VectorXd CA = return_dinuc_weight(window, 0, period, 1);
+  Eigen::VectorXd CA = return_dinuc_weight(window, 0, period, 1.0);
   Eigen::VectorXd CC = CA;
   Eigen::VectorXd CG = CA;
   Eigen::VectorXd CT = CA;
 
-  Eigen::VectorXd GA = return_dinuc_weight(window, amp, period, 3);
-  Eigen::VectorXd GC = return_dinuc_weight(window, -amp, period, 1);
+  Eigen::VectorXd GA = return_dinuc_weight(window, amp, period, 3.0);
+  Eigen::VectorXd GC = return_dinuc_weight(window, -amp, period, 1.0);
   Eigen::VectorXd GG = GA;
   Eigen::VectorXd GT = GA;
 
-  Eigen::VectorXd TA = return_dinuc_weight(window, amp, period, 1);
-  Eigen::VectorXd TC = return_dinuc_weight(window, -amp, period, 1);
+  Eigen::VectorXd TA = return_dinuc_weight(window, amp, period, 1.0);
+  Eigen::VectorXd TC = return_dinuc_weight(window, -amp, period, 1.0);
   Eigen::VectorXd TG = TC;
   Eigen::VectorXd TT = TA;
 
@@ -77,8 +114,14 @@ Eigen::VectorXd do_vannoort(tt1 seq, tt2 cond) {
   Eigen::VectorXd pr(length(seq) - window);
   double ps_f = 1.0;
   double ps_r = 1.0;
-  for (unsigned s = 0; s < window; ++s) {
-    unsigned ii = (unsigned)ordValue(seq[length(seq) - 1]);
+  unsigned ii = (unsigned)ordValue(seq[length(seq) - 1]);
+  unsigned jj = (unsigned)ordValue(seq[0]);
+  ps_f *= weights[ii][jj](0);
+  unsigned ri = 3 - (unsigned)ordValue(seq[window]);
+  unsigned rj = 3 - (unsigned)ordValue(seq[window - 1]);
+  ps_r *= weights[ri][rj](0);
+  for (unsigned s = 1; s < window; ++s) {
+    unsigned ii = (unsigned)ordValue(seq[s - 1]);
     unsigned jj = (unsigned)ordValue(seq[s]);
     ps_f *= weights[ii][jj](s);
     unsigned ri = 3 - (unsigned)ordValue(seq[window - s]);
@@ -96,7 +139,6 @@ Eigen::VectorXd do_vannoort(tt1 seq, tt2 cond) {
       unsigned ii = (unsigned)ordValue(seq[i + s - 1]);
       unsigned jj = (unsigned)ordValue(seq[i + s]);
       ps_f *= weights[ii][jj](s);
-      std::cout << ps_f << std::endl;
       unsigned ri = 3 - (unsigned)ordValue(seq[i + window - s]);
       unsigned rj = 3 - (unsigned)ordValue(seq[i + window - s - 1]);
       ps_r *= weights[ri][rj](s);
@@ -106,8 +148,8 @@ Eigen::VectorXd do_vannoort(tt1 seq, tt2 cond) {
   }
   // multiply all by 4^window
   for (unsigned i = 0; i < pf.size(); ++i) {
-    pf(i) *= std::pow(4, window);
-    pr(i) *= std::pow(4, window);
+    pf(i) *= std::pow(4.L, window);
+    pr(i) *= std::pow(4.L, window);
   }
   // circular shift pr
   for (unsigned i = 0; i < pr.size() - 1; ++i) {
@@ -118,8 +160,20 @@ Eigen::VectorXd do_vannoort(tt1 seq, tt2 cond) {
   // Average both strands
 
   Eigen::VectorXd E(length(seq) - window);
+  std::vector<double> EE;
   for (unsigned i = 0; i < pr.size(); ++i) {
-    E(i) = pr(i) * log(pr(i)) + pf(i) * log(pf(i)) / (pr(i) + pf(i));
+    E(i) = (pr(i) * log(pr(i)) + pf(i) * log(pf(i))) / (pr(i) + pf(i));
+    EE.push_back((double)E(i));
+  }
+  boxFIR box(10);
+  box.filter(EE);
+  std::cout << "Unfiltered" << std::endl;
+  for (unsigned i = 0; i < pr.size(); ++i) {
+    std::cout << E(i) << std::endl;
+  }
+  std::cout << "Filtered" << std::endl;
+  for (unsigned i = 0; i < pr.size(); ++i) {
+    std::cout << EE[i] << std::endl;
   }
   return E;
 }
