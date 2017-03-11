@@ -14,8 +14,10 @@
 #include "nuc_elastic.hpp"
 #include <math.h>
 
-//#define PI 3.1415926535897932384626L
-
+// class to perform smoothing, shamelessly from StackOverflow
+// http://stackoverflow.com/a/12973856
+// You might want to implement another smoothing later on, e.g.
+// low pass filter implemented in van Noorts python code
 class boxFIR {
   int numCoeffs;         // MUST be > 0
   std::vector<double> b; // Filter coefficients
@@ -170,9 +172,16 @@ std::vector<double> do_vannoort(tt1 seq, tt2 cond) {
   // smooth
   boxFIR box(10);
   box.filter(EE);
-  // add padding window/2 at begining and end to center nucleosome center
+  // add padding windows/2 at begining and end to center nucleosome center
   // at the right place
-  return EE;
+  unsigned half_w = (unsigned)(ceil(window / 2.));
+  std::vector<double> zeros(half_w, 0.0);
+  std::vector<double> E_final;
+  E_final.insert(std::end(E_final), std::begin(zeros), std::end(zeros));
+  E_final.insert(std::end(E_final), std::begin(EE), std::end(EE));
+  E_final.insert(std::end(E_final), std::begin(zeros), std::end(zeros));
+
+  return E_final;
 }
 
 template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
