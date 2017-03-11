@@ -104,7 +104,7 @@ std::vector<std::vector<Eigen::VectorXd>> getweights(tt1 cond) {
 }
 
 template <typename tt1, typename tt2>
-Eigen::VectorXd do_vannoort(tt1 seq, tt2 cond) {
+std::vector<double> do_vannoort(tt1 seq, tt2 cond) {
   unsigned window = 74;
   // first one is special due to pbc and weird averaging done in original script
   // I want to avoid using anf if inside the loop, so I just make it explicit
@@ -136,9 +136,11 @@ Eigen::VectorXd do_vannoort(tt1 seq, tt2 cond) {
     double ps_f = 1.0;
     double ps_r = 1.0;
     for (unsigned s = 0; s < window; ++s) {
+      // ordValue gives A:0, C:1, G:2, T:3
       unsigned ii = (unsigned)ordValue(seq[i + s - 1]);
       unsigned jj = (unsigned)ordValue(seq[i + s]);
       ps_f *= weights[ii][jj](s);
+      // 3 - ordValue(base) gives the ordValue of pair
       unsigned ri = 3 - (unsigned)ordValue(seq[i + window - s]);
       unsigned rj = 3 - (unsigned)ordValue(seq[i + window - s - 1]);
       ps_r *= weights[ri][rj](s);
@@ -152,30 +154,25 @@ Eigen::VectorXd do_vannoort(tt1 seq, tt2 cond) {
     pr(i) *= std::pow(4.L, window);
   }
   // circular shift pr
+  // overall, the fwd and rev strand will have the nuc center
+  // displaced 2bp, the average will center them in the middle
   for (unsigned i = 0; i < pr.size() - 1; ++i) {
     auto p = pr(i);
     pr(i) = pr(i + 1);
     pr(i + 1) = p;
   }
-  // Average both strands
-
-  Eigen::VectorXd E(length(seq) - window);
+  // Boltzman average both strands
   std::vector<double> EE;
   for (unsigned i = 0; i < pr.size(); ++i) {
-    E(i) = (pr(i) * log(pr(i)) + pf(i) * log(pf(i))) / (pr(i) + pf(i));
-    EE.push_back((double)E(i));
+    double E = (pr(i) * log(pr(i)) + pf(i) * log(pf(i))) / (pr(i) + pf(i));
+    EE.push_back((double)E);
   }
+  // smooth
   boxFIR box(10);
   box.filter(EE);
-  std::cout << "Unfiltered" << std::endl;
-  for (unsigned i = 0; i < pr.size(); ++i) {
-    std::cout << E(i) << std::endl;
-  }
-  std::cout << "Filtered" << std::endl;
-  for (unsigned i = 0; i < pr.size(); ++i) {
-    std::cout << EE[i] << std::endl;
-  }
-  return E;
+  // add padding window/2 at begining and end to center nucleosome center
+  // at the right place
+  return EE;
 }
 
 template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
