@@ -6,6 +6,12 @@
 //  van der Heijden et al.  DOI: 10.1073/pnas.1205659109
 //
 //  Based on the python implementation I got from J. v. Noort
+//  It is amlmost a literal translation of his code.
+//
+//  TODO: remove Eigen vectors and change to std::vector, no
+//  gain from using Eigen, and one could drop the dependency
+//  it the library was to be called from a code that does not
+//  require Eigen.
 //
 //////////////////////////////////////////////////////////////////
 
@@ -105,12 +111,18 @@ std::vector<std::vector<Eigen::VectorXd>> getweights(tt1 cond) {
   return weights;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
 template <typename tt1, typename tt2>
-std::vector<double> do_vannoort(tt1 seq, tt2 cond) {
+std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
   unsigned window = 74;
   // first one is special due to pbc and weird averaging done in original script
   // I want to avoid using anf if inside the loop, so I just make it explicit
   // notice how the two strands are slanted // offset by one ... no idea why
+  // very verbose, but better than an if at each step of the loop
+  // for clarity perhaps one could use a modulo or sth, to get the last
+  // element of the sequence... would make the code nicer
   std::vector<std::vector<Eigen::VectorXd>> weights = getweights(cond);
   Eigen::VectorXd pf(length(seq) - window);
   Eigen::VectorXd pr(length(seq) - window);
@@ -182,6 +194,57 @@ std::vector<double> do_vannoort(tt1 seq, tt2 cond) {
   E_final.insert(std::end(E_final), std::begin(zeros), std::end(zeros));
 
   return E_final;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+template <typename tt1, typename tt2>
+std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
+  // computes Vanderlick's solution to the Percus equation
+  // as said, the code is a 1-to-1 copy of van Noort's code
+  double mu = -1.5;
+  int footprint = NUC_LEN;
+  std::vector<double> E_out;
+  for (const auto &e : E) {
+    E_out.push_back(e - mu);
+  }
+  std::vector<double> fwd(E.size(), 0);
+  for (unsigned i = 0; i < E.size(); ++i) {
+    double tmp = 0;
+    int i_max = std::max(((int)i - footprint), 0);
+    for (unsigned j = i_max; j < i; ++j) {
+      tmp += fwd[j];
+    }
+    fwd[i] = exp(E_out[i] - tmp);
+  }
+  std::vector<double> bwd(E.size(), 0);
+  // reverse fwd vector
+  std::vector<double> r_fwd(fwd.rbegin(), fwd.rend());
+  for (unsigned i = 0; i < E.size(); ++i) {
+    double tmp = 0;
+    int i_max = std::max(((int)i - footprint), 0);
+    for (unsigned j = i_max; j < i; ++j) {
+      tmp += r_fwd[j] * bwd[j];
+    }
+    bwd[i] = 1.0 - tmp;
+  }
+  std::vector<double> P(E.size(), 0);
+  // bwd is iterated backwards
+  for (unsigned i = 0; i < E.size(); ++i) {
+    P[i] = fwd[i] * bwd[E.size() - i - 1];
+  }
+  return P;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+template <typename tt1, typename tt2>
+std::vector<double> do_vannoort(tt1 seq, tt2 cond) {
+  std::vector<double> E = calcE_vn(seq, cond);
+  std::vector<double> P = vanderlick_vn(E, cond);
+  return P;
 }
 
 template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
