@@ -1,23 +1,61 @@
-//////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 //  Predictor of nucleosome occupancy based on
-//  Based on "Sequence-based prediction of single nucleosome
+//
+//  "Sequence-based prediction of single nucleosome
 //  positioning and genome-wide nucleosome occupancy",
 //  van der Heijden et al.  DOI: 10.1073/pnas.1205659109
 //
 //  Based on the python implementation I got from J. v. Noort
-//  It is amlmost a literal translation of his code.
+//  It is a literal translation of his code. I checked it against
+//  his results for a 2000 bp sequence, and the results match.
 //
-//////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 #ifndef V_NOORT_H
 #define V_NOORT_H
 #include "nuc_elastic.hpp"
 #include <math.h>
 
-// Convolution code from StackOverflow
-//  http://stackoverflow.com/a/24519913
-// this is in full mode, but van noort uses same
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//  Add window/2 zeros on either side of vector f
+///////////////////////////////////////////////////////////////////////////////
+template <typename tt1, typename tt2>
+std::vector<tt1> add_zeros_padding(std::vector<tt1> const &f, tt2 win_l) {
+
+  unsigned half_w = (unsigned)(ceil(win_l / 2.));
+  std::vector<double> zeros(half_w, 0.0);
+  std::vector<double> z_padded;
+  z_padded.insert(std::end(z_padded), std::begin(zeros), std::end(zeros));
+  z_padded.insert(std::end(z_padded), std::begin(f), std::end(f));
+  z_padded.insert(std::end(z_padded), std::begin(zeros), std::end(zeros));
+  return z_padded;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// for quick&dirty debugging
+////////////////////////////////////////////////////////////////////////////////
+template <typename tt1> void print_debug(tt1 x) {
+
+  for (auto &v : x) {
+    std::cout << v << std::endl;
+  }
+  std::cout << "&" << std::endl;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Convolution code, copied from:
+// -> For 'valid' and 'full' directly from StackOverflow
+// http://stackoverflow.com/a/24519913
+// -> For 'same' it was addapted it from code found here
+// moving from 2D to 1D (mind his code assumes vectorized 2D)
+// https://github.com/jeremyfix/FFTConvolution
+///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 std::vector<T> conv_valid(std::vector<T> const &f, std::vector<T> const &g) {
   int const nf = f.size();
@@ -49,9 +87,8 @@ std::vector<T> conv_full(std::vector<T> const &f, std::vector<T> const &g) {
   }
   return out;
 }
-
 // this returns a padding that is not exactly the same as numpy convolve,
-// but should work well enough
+// but it seems to work as well
 template <typename T>
 std::vector<T> conv_same(std::vector<T> const &f, std::vector<T> const &g) {
 
@@ -71,21 +108,13 @@ std::vector<T> conv_same(std::vector<T> const &f, std::vector<T> const &g) {
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-template <typename tt1> void print_debug(tt1 x) {
-  for (auto &v : x) {
-    std::cout << v << std::endl;
-  }
-  std::cout << "&" << std::endl;
-}
-
+// this should do exactly the same smoothing as vanNoort
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-// this should do exactly the same smoothing as vanNoort, numerical diffs a part
 template <typename tt1, typename tt2>
 std::vector<double> smooth_vn(tt1 x, tt2 w_len) {
-  // image the extrems of x
-  // maybe there is a more compact way base on iterators
-  // TODO::: there is sth fishy by the end!!!
+
+  // image the extremes of x : create mirrored copies of the ends
+  // and paste together
   std::vector<double> b(w_len - 1);
   for (int i = 0; i < w_len - 1; ++i) {
     b[i] = x[w_len - 1 - i];
@@ -99,31 +128,38 @@ std::vector<double> smooth_vn(tt1 x, tt2 w_len) {
   s.insert(std::end(s), std::begin(x), std::end(x));
   s.insert(std::end(s), std::begin(e), std::end(e));
 
+  // convolute extended curve with square window
   double norm_weight = 1.0 / (double)w_len;
   std::vector<double> w(w_len, norm_weight);
   std::vector<double> y = conv_valid(s, w);
   std::vector<double> smoothed(x.size());
+  // return ignoring the added w_len - 1
   for (unsigned i = 0; i < x.size(); ++i) {
     smoothed[i] = y[w_len - 1 + i];
   }
   return smoothed;
 }
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// Returns weight according to the prescribed periodicity functional form
+// by adding div and changing the sing of amplitude b you can generalize
+// the functional form for every dinucleotide (except CA, which is ctt)
+////////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2, typename tt3, typename tt4>
 std::vector<double> return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div) {
+
   std::vector<double> vect(w, 0);
   for (unsigned i = 0; i < w; ++i) {
     vect[i] = 0.25 + b * sin(2 * M_PI * i / p) / div;
   }
-
   return vect;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-
+// Probabiliis of dinucleotides based on vanNoort
+////////////////////////////////////////////////////////////////////////////////
 template <typename tt1>
 std::vector<std::vector<std::vector<double>>> getweights(tt1 cond) {
 
@@ -150,10 +186,14 @@ std::vector<std::vector<std::vector<double>>> getweights(tt1 cond) {
   std::vector<double> TG = TC;
   std::vector<double> TT = TA;
 
+  // the order is really important
   std::vector<std::vector<double>> v_As = {AA, AC, AG, AT};
   std::vector<std::vector<double>> v_Cs = {CA, CC, CG, CT};
   std::vector<std::vector<double>> v_Gs = {GA, GC, GG, GT};
   std::vector<std::vector<double>> v_Ts = {TA, TC, TG, TT};
+  // first index of vector[x][y][s] gives you the first dinucleotide
+  // the second index the following dinucleotide, and the [s] goes
+  // along the window
   std::vector<std::vector<std::vector<double>>> weights = {v_As, v_Cs, v_Gs,
                                                            v_Ts};
 
@@ -162,14 +202,15 @@ std::vector<std::vector<std::vector<double>>> getweights(tt1 cond) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
+// Calculation of the free energy based on probability to find nuc dyad on a
+// given base.
+///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2>
 std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
   unsigned window = 74;
-  // first one is special due to pbc and weird averaging done in original
-  // script
+  // first one is special due to pbc and averaging done in original script
   // I want to avoid using anf if inside the loop, so I just make it explicit
-  // notice how the two strands are slanted // offset by one ... no idea why
+  // notice how the two strands are slanted // offset by one in original code
   // very verbose, but better than an if at each step of the loop
   // for clarity perhaps one could use a modulo or sth, to get the last
   // element of the sequence... would make the code nicer
@@ -200,11 +241,12 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
     double ps_f = 1.0;
     double ps_r = 1.0;
     for (unsigned s = 0; s < window; ++s) {
-      // ordValue gives A:0, C:1, G:2, T:3
+      // ordValue gives A:0, C:1, G:2, T:3, which matches order of indices
+      // in weights (see getweights function)
       unsigned ii = (unsigned)ordValue(seq[i + s - 1]);
       unsigned jj = (unsigned)ordValue(seq[i + s]);
       ps_f *= weights[ii][jj][s];
-      // 3 - ordValue(base) gives the ordValue of pair
+      // 3 - ordValue(base) gives the ordValue of base pair
       unsigned ri = 3 - (unsigned)ordValue(seq[i + window - s]);
       unsigned rj = 3 - (unsigned)ordValue(seq[i + window - s - 1]);
       ps_r *= weights[ri][rj][s];
@@ -212,12 +254,12 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
     pf[i] = ps_f;
     pr[i] = ps_r;
   }
-  // multiply all by 4^window
+  // multiples all by 4^window
   for (unsigned i = 0; i < pf.size(); ++i) {
     pf[i] *= std::pow(4.L, window);
     pr[i] *= std::pow(4.L, window);
   }
-  // circular shift pr
+  // circular shifts pr
   // overall, the fwd and rev strand will have the nuc center
   // displaced 2bp, the average will center them in the middle
   for (unsigned i = 0; i < pr.size() - 1; ++i) {
@@ -225,29 +267,27 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
     pr[i] = pr[i + 1];
     pr[i + 1] = p;
   }
-  // Boltzman average both strands
+  // Boltzman averages both strands
   std::vector<double> EE;
   for (unsigned i = 0; i < pr.size(); ++i) {
     double E = (pr[i] * log(pr[i]) + pf[i] * log(pf[i])) / (pr[i] + pf[i]);
     EE.push_back((double)E);
   }
-  // print_debug(EE);
-  // smooth
+  // smooths
   std::vector<double> E_smoothed = smooth_vn(EE, 10);
   return E_smoothed;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
+// Computes Vanderlick's solution to the Percus equation
+// Again, 1-to-1 copy of van Noort's code
+///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2>
 std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
-  // computes Vanderlick's solution to the Percus equation
-  // as said, the code is a 1-to-1 copy of van Noort's code
   double mu = -1.5;
   int window = 74;
-  // int footprint = NUC_LEN;
-  int footprint = 147;
+  int footprint = NUC_LEN;
   std::vector<double> E_out;
   for (const auto &e : E) {
     E_out.push_back(e - mu);
@@ -261,7 +301,6 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
     }
     fwd[i] = exp(E_out[i] - tmp);
   }
-  // print_debug(fwd);
   std::vector<double> bwd(E.size(), 0.0);
   // reverse fwd vector
   std::vector<double> r_fwd(fwd.rbegin(), fwd.rend());
@@ -273,8 +312,6 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
     }
     bwd[i] = 1.0 - tmp;
   }
-  // here is when we don't get exactly the same... numerical??
-  // makes me a bit nervous
   std::vector<double> P(E.size(), 0);
   // bwd is reversed in place, we don't need it anymore
   std::reverse(bwd.begin(), bwd.end());
@@ -282,30 +319,38 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
     P[i] = fwd[i] * bwd[i];
   }
   // add padding windows/2 at begining and end to center nucleosome center
-  // at the right place
-  unsigned half_w = (unsigned)(ceil(window / 2.));
-  std::vector<double> zeros(half_w, 0.0);
-  std::vector<double> P_final;
-  P_final.insert(std::end(P_final), std::begin(zeros), std::end(zeros));
-  P_final.insert(std::end(P_final), std::begin(P), std::end(P));
-  P_final.insert(std::end(P_final), std::begin(zeros), std::end(zeros));
+  std::vector<double> P_final = add_zeros_padding(P, window);
   return P_final;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
+//  For a given sequence computes nucleosome occupancy and energy based on van
+//  Noort's approach.
+///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2> void do_vannoort(tt1 seq, tt2 cond) {
+
+  // change this magic number to be obtained from cond
+  int window = 74;
+  //  Note that the energy is smoothed before being returned.
+  //  but the data is not padded (e.g. lacks window/2 on either side)
   std::vector<double> E = calcE_vn(seq, cond);
+  // here P returns well padded, has the same length as bases in the orginal seq
   std::vector<double> P = vanderlick_vn(E, cond);
-  std::vector<double> zeros(146, 1.0);
+  // convolute the provability (?) with footprint-1 (??) to get the occupancy
+  std::vector<double> zeros(NUC_LEN - 1, 1.0);
   std::vector<double> N = conv_same(P, zeros);
+  // add padding to E (recall it was smoothed), to print out
+  std::vector<double> e_padded = add_zeros_padding(E, window);
   print_debug(N);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//  For each sequece get prediction of nuc occupancy and energy
+///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
-
-  //#pragma omp parallel for
+#pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
     if (length(seqs[i]) >= NUC_LEN) {
       do_vannoort(seqs[i], cond);
