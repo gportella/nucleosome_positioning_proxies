@@ -8,11 +8,6 @@
 //  Based on the python implementation I got from J. v. Noort
 //  It is amlmost a literal translation of his code.
 //
-//  TODO: remove Eigen vectors and change to std::vector, no
-//  gain from using Eigen, and one could drop the dependency
-//  it the library was to be called from a code that does not
-//  require Eigen.
-//
 //////////////////////////////////////////////////////////////////
 
 #ifndef V_NOORT_H
@@ -20,93 +15,147 @@
 #include "nuc_elastic.hpp"
 #include <math.h>
 
-// class to perform smoothing, shamelessly from StackOverflow
-// http://stackoverflow.com/a/12973856
-// You might want to implement another smoothing later on, e.g.
-// low pass filter implemented in van Noorts python code
-class boxFIR {
-  int numCoeffs;         // MUST be > 0
-  std::vector<double> b; // Filter coefficients
-  std::vector<double> m; // Filter memories
-
-public:
-  boxFIR(int _numCoeffs) : numCoeffs(_numCoeffs) {
-    if (numCoeffs < 1)
-      numCoeffs = 1; // Must be > 0 or bad stuff happens
-
-    double val = 1. / numCoeffs;
-    for (int ii = 0; ii < numCoeffs; ++ii) {
-      b.push_back(val);
-      m.push_back(0.);
+// Convolution code from StackOverflow
+//  http://stackoverflow.com/a/24519913
+// this is in full mode, but van noort uses same
+template <typename T>
+std::vector<T> conv_valid(std::vector<T> const &f, std::vector<T> const &g) {
+  int const nf = f.size();
+  int const ng = g.size();
+  std::vector<T> const &min_v = (nf < ng) ? f : g;
+  std::vector<T> const &max_v = (nf < ng) ? g : f;
+  int const n = std::max(nf, ng) - std::min(nf, ng) + 1;
+  std::vector<T> out(n, T());
+  for (auto i(0); i < n; ++i) {
+    for (int j(min_v.size() - 1), k(i); j >= 0; --j) {
+      out[i] += min_v[j] * max_v[k];
+      ++k;
     }
   }
-
-  void filter(std::vector<double> &a) {
-    double output;
-
-    for (int nn = 0; nn < a.size(); ++nn) {
-      // Apply smoothing filter to signal
-      output = 0;
-      m[0] = a[nn];
-      for (int ii = 0; ii < numCoeffs; ++ii) {
-        output += b[ii] * m[ii];
-      }
-
-      // Reshuffle memories
-      for (int ii = numCoeffs - 1; ii != 0; --ii) {
-        m[ii] = m[ii - 1];
-      }
-      a[nn] = output;
+  return out;
+}
+template <typename T>
+std::vector<T> conv_full(std::vector<T> const &f, std::vector<T> const &g) {
+  int const nf = f.size();
+  int const ng = g.size();
+  int const n = nf + ng - 1;
+  std::vector<T> out(n, T());
+  for (auto i(0); i < n; ++i) {
+    int const jmn = (i >= ng - 1) ? i - (ng - 1) : 0;
+    int const jmx = (i < nf - 1) ? i : nf - 1;
+    for (auto j(jmn); j <= jmx; ++j) {
+      out[i] += (f[j] * g[i - j]);
     }
   }
-};
+  return out;
+}
+
+// this returns a padding that is not exactly the same as numpy convolve,
+// but should work well enough
+template <typename T>
+std::vector<T> conv_same(std::vector<T> const &f, std::vector<T> const &g) {
+
+  int const n = (f.size() > g.size()) ? f.size() : g.size();
+  std::vector<T> out(n, T());
+  for (int i = 0; i < out.size(); ++i) {
+    int low_k = std::max(0, i - (int)((g.size() - 1.0) / 2.0));
+    int high_k = std::min((int)f.size(), i + (int)(g.size() / 2));
+    double temp = 0.0;
+    for (int k = low_k; k <= high_k; ++k) {
+      temp += f[k] * g[(i - k + (int)(g.size() / 2.0))];
+    }
+    out[i] = temp;
+  }
+  return out;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+template <typename tt1> void print_debug(tt1 x) {
+  for (auto &v : x) {
+    std::cout << v << std::endl;
+  }
+  std::cout << "&" << std::endl;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// this should do exactly the same smoothing as vanNoort, numerical diffs a part
+template <typename tt1, typename tt2>
+std::vector<double> smooth_vn(tt1 x, tt2 w_len) {
+  // image the extrems of x
+  // maybe there is a more compact way base on iterators
+  // TODO::: there is sth fishy by the end!!!
+  std::vector<double> b(w_len - 1);
+  for (int i = 0; i < w_len - 1; ++i) {
+    b[i] = x[w_len - 1 - i];
+  }
+  std::vector<double> e(w_len - 1);
+  for (unsigned i = 0; i < w_len - 1; ++i) {
+    e[i] = x[x.size() - 1 - i];
+  }
+  std::vector<double> s;
+  s.insert(std::end(s), std::begin(b), std::end(b));
+  s.insert(std::end(s), std::begin(x), std::end(x));
+  s.insert(std::end(s), std::begin(e), std::end(e));
+
+  double norm_weight = 1.0 / (double)w_len;
+  std::vector<double> w(w_len, norm_weight);
+  std::vector<double> y = conv_valid(s, w);
+  std::vector<double> smoothed(x.size());
+  for (unsigned i = 0; i < x.size(); ++i) {
+    smoothed[i] = y[w_len - 1 + i];
+  }
+  return smoothed;
+}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename tt1, typename tt2, typename tt3, typename tt4>
-Eigen::VectorXd return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div) {
-  Eigen::VectorXd vect(w);
+std::vector<double> return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div) {
+  std::vector<double> vect(w, 0);
   for (unsigned i = 0; i < w; ++i) {
-    vect(i) = 0.25 + b * sin(2 * M_PI * i / p) / div;
+    vect[i] = 0.25 + b * sin(2 * M_PI * i / p) / div;
   }
 
   return vect;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename tt1>
-std::vector<std::vector<Eigen::VectorXd>> getweights(tt1 cond) {
-  // There might not be an actuall reason to use Eigen here
-  // but since I need it anyway for nuc_elastic, I use it
+std::vector<std::vector<std::vector<double>>> getweights(tt1 cond) {
 
   unsigned window = 74;
-  float period = 10.1;
+  float period = 10.2;
   float amp = 0.2;
-  Eigen::VectorXd AA = return_dinuc_weight(window, amp, period, 1.0);
-  Eigen::VectorXd AC = return_dinuc_weight(window, -amp, period, 3.0);
-  Eigen::VectorXd AG = AC;
-  Eigen::VectorXd AT = AC;
+  std::vector<double> AA = return_dinuc_weight(window, amp, period, 1.0);
+  std::vector<double> AC = return_dinuc_weight(window, -amp, period, 3.0);
+  std::vector<double> AG = AC;
+  std::vector<double> AT = AC;
 
-  // the one below is actually 0.25 for all, decide if you want to initialize
-  // to that, or compute 0*sinus to have a more compact way. I hope the
-  // compiler catches that b=0
-  Eigen::VectorXd CA = return_dinuc_weight(window, 0, period, 1.0);
-  Eigen::VectorXd CC = CA;
-  Eigen::VectorXd CG = CA;
-  Eigen::VectorXd CT = CA;
+  std::vector<double> CA(window, 0.25);
+  std::vector<double> CC = CA;
+  std::vector<double> CG = CA;
+  std::vector<double> CT = CA;
 
-  Eigen::VectorXd GA = return_dinuc_weight(window, amp, period, 3.0);
-  Eigen::VectorXd GC = return_dinuc_weight(window, -amp, period, 1.0);
-  Eigen::VectorXd GG = GA;
-  Eigen::VectorXd GT = GA;
+  std::vector<double> GA = return_dinuc_weight(window, amp, period, 3.0);
+  std::vector<double> GC = return_dinuc_weight(window, -amp, period, 1.0);
+  std::vector<double> GG = GA;
+  std::vector<double> GT = GA;
 
-  Eigen::VectorXd TA = return_dinuc_weight(window, amp, period, 1.0);
-  Eigen::VectorXd TC = return_dinuc_weight(window, -amp, period, 1.0);
-  Eigen::VectorXd TG = TC;
-  Eigen::VectorXd TT = TA;
+  std::vector<double> TA = return_dinuc_weight(window, amp, period, 1.0);
+  std::vector<double> TC = return_dinuc_weight(window, -amp, period, 1.0);
+  std::vector<double> TG = TC;
+  std::vector<double> TT = TA;
 
-  std::vector<Eigen::VectorXd> v_As = {AA, AC, AG, AT};
-  std::vector<Eigen::VectorXd> v_Cs = {CA, CC, CG, CT};
-  std::vector<Eigen::VectorXd> v_Gs = {GA, GC, GG, GT};
-  std::vector<Eigen::VectorXd> v_Ts = {TA, TC, TG, TT};
-  std::vector<std::vector<Eigen::VectorXd>> weights = {v_As, v_Cs, v_Gs, v_Ts};
+  std::vector<std::vector<double>> v_As = {AA, AC, AG, AT};
+  std::vector<std::vector<double>> v_Cs = {CA, CC, CG, CT};
+  std::vector<std::vector<double>> v_Gs = {GA, GC, GG, GT};
+  std::vector<std::vector<double>> v_Ts = {TA, TC, TG, TT};
+  std::vector<std::vector<std::vector<double>>> weights = {v_As, v_Cs, v_Gs,
+                                                           v_Ts};
 
   return weights;
 }
@@ -117,33 +166,34 @@ std::vector<std::vector<Eigen::VectorXd>> getweights(tt1 cond) {
 template <typename tt1, typename tt2>
 std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
   unsigned window = 74;
-  // first one is special due to pbc and weird averaging done in original script
+  // first one is special due to pbc and weird averaging done in original
+  // script
   // I want to avoid using anf if inside the loop, so I just make it explicit
   // notice how the two strands are slanted // offset by one ... no idea why
   // very verbose, but better than an if at each step of the loop
   // for clarity perhaps one could use a modulo or sth, to get the last
   // element of the sequence... would make the code nicer
-  std::vector<std::vector<Eigen::VectorXd>> weights = getweights(cond);
-  Eigen::VectorXd pf(length(seq) - window);
-  Eigen::VectorXd pr(length(seq) - window);
+  std::vector<std::vector<std::vector<double>>> weights = getweights(cond);
+  std::vector<double> pf(length(seq) - window);
+  std::vector<double> pr(length(seq) - window);
   double ps_f = 1.0;
   double ps_r = 1.0;
   unsigned ii = (unsigned)ordValue(seq[length(seq) - 1]);
   unsigned jj = (unsigned)ordValue(seq[0]);
-  ps_f *= weights[ii][jj](0);
+  ps_f *= weights[ii][jj][0];
   unsigned ri = 3 - (unsigned)ordValue(seq[window]);
   unsigned rj = 3 - (unsigned)ordValue(seq[window - 1]);
-  ps_r *= weights[ri][rj](0);
+  ps_r *= weights[ri][rj][0];
   for (unsigned s = 1; s < window; ++s) {
     unsigned ii = (unsigned)ordValue(seq[s - 1]);
     unsigned jj = (unsigned)ordValue(seq[s]);
-    ps_f *= weights[ii][jj](s);
+    ps_f *= weights[ii][jj][s];
     unsigned ri = 3 - (unsigned)ordValue(seq[window - s]);
     unsigned rj = 3 - (unsigned)ordValue(seq[window - s - 1]);
-    ps_r *= weights[ri][rj](s);
+    ps_r *= weights[ri][rj][s];
   }
-  pf(0) = ps_f;
-  pr(0) = ps_r;
+  pf[0] = ps_f;
+  pr[0] = ps_r;
 
   // now proceed from 1 onward
   for (unsigned i = 1; i < length(seq) - window; ++i) {
@@ -153,47 +203,38 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
       // ordValue gives A:0, C:1, G:2, T:3
       unsigned ii = (unsigned)ordValue(seq[i + s - 1]);
       unsigned jj = (unsigned)ordValue(seq[i + s]);
-      ps_f *= weights[ii][jj](s);
+      ps_f *= weights[ii][jj][s];
       // 3 - ordValue(base) gives the ordValue of pair
       unsigned ri = 3 - (unsigned)ordValue(seq[i + window - s]);
       unsigned rj = 3 - (unsigned)ordValue(seq[i + window - s - 1]);
-      ps_r *= weights[ri][rj](s);
+      ps_r *= weights[ri][rj][s];
     }
-    pf(i) = ps_f;
-    pr(i) = ps_r;
+    pf[i] = ps_f;
+    pr[i] = ps_r;
   }
   // multiply all by 4^window
   for (unsigned i = 0; i < pf.size(); ++i) {
-    pf(i) *= std::pow(4.L, window);
-    pr(i) *= std::pow(4.L, window);
+    pf[i] *= std::pow(4.L, window);
+    pr[i] *= std::pow(4.L, window);
   }
   // circular shift pr
   // overall, the fwd and rev strand will have the nuc center
   // displaced 2bp, the average will center them in the middle
   for (unsigned i = 0; i < pr.size() - 1; ++i) {
-    auto p = pr(i);
-    pr(i) = pr(i + 1);
-    pr(i + 1) = p;
+    auto p = pr[i];
+    pr[i] = pr[i + 1];
+    pr[i + 1] = p;
   }
   // Boltzman average both strands
   std::vector<double> EE;
   for (unsigned i = 0; i < pr.size(); ++i) {
-    double E = (pr(i) * log(pr(i)) + pf(i) * log(pf(i))) / (pr(i) + pf(i));
+    double E = (pr[i] * log(pr[i]) + pf[i] * log(pf[i])) / (pr[i] + pf[i]);
     EE.push_back((double)E);
   }
+  // print_debug(EE);
   // smooth
-  boxFIR box(10);
-  box.filter(EE);
-  // add padding windows/2 at begining and end to center nucleosome center
-  // at the right place
-  unsigned half_w = (unsigned)(ceil(window / 2.));
-  std::vector<double> zeros(half_w, 0.0);
-  std::vector<double> E_final;
-  E_final.insert(std::end(E_final), std::begin(zeros), std::end(zeros));
-  E_final.insert(std::end(E_final), std::begin(EE), std::end(EE));
-  E_final.insert(std::end(E_final), std::begin(zeros), std::end(zeros));
-
-  return E_final;
+  std::vector<double> E_smoothed = smooth_vn(EE, 10);
+  return E_smoothed;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -204,21 +245,24 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
   // computes Vanderlick's solution to the Percus equation
   // as said, the code is a 1-to-1 copy of van Noort's code
   double mu = -1.5;
-  int footprint = NUC_LEN;
+  int window = 74;
+  // int footprint = NUC_LEN;
+  int footprint = 147;
   std::vector<double> E_out;
   for (const auto &e : E) {
     E_out.push_back(e - mu);
   }
   std::vector<double> fwd(E.size(), 0);
   for (unsigned i = 0; i < E.size(); ++i) {
-    double tmp = 0;
+    double tmp = 0.0;
     int i_max = std::max(((int)i - footprint), 0);
     for (unsigned j = i_max; j < i; ++j) {
       tmp += fwd[j];
     }
     fwd[i] = exp(E_out[i] - tmp);
   }
-  std::vector<double> bwd(E.size(), 0);
+  // print_debug(fwd);
+  std::vector<double> bwd(E.size(), 0.0);
   // reverse fwd vector
   std::vector<double> r_fwd(fwd.rbegin(), fwd.rend());
   for (unsigned i = 0; i < E.size(); ++i) {
@@ -229,22 +273,34 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
     }
     bwd[i] = 1.0 - tmp;
   }
+  // here is when we don't get exactly the same... numerical??
+  // makes me a bit nervous
   std::vector<double> P(E.size(), 0);
-  // bwd is iterated backwards
+  // bwd is reversed in place, we don't need it anymore
+  std::reverse(bwd.begin(), bwd.end());
   for (unsigned i = 0; i < E.size(); ++i) {
-    P[i] = fwd[i] * bwd[E.size() - i - 1];
+    P[i] = fwd[i] * bwd[i];
   }
-  return P;
+  // add padding windows/2 at begining and end to center nucleosome center
+  // at the right place
+  unsigned half_w = (unsigned)(ceil(window / 2.));
+  std::vector<double> zeros(half_w, 0.0);
+  std::vector<double> P_final;
+  P_final.insert(std::end(P_final), std::begin(zeros), std::end(zeros));
+  P_final.insert(std::end(P_final), std::begin(P), std::end(P));
+  P_final.insert(std::end(P_final), std::begin(zeros), std::end(zeros));
+  return P_final;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename tt1, typename tt2>
-std::vector<double> do_vannoort(tt1 seq, tt2 cond) {
+template <typename tt1, typename tt2> void do_vannoort(tt1 seq, tt2 cond) {
   std::vector<double> E = calcE_vn(seq, cond);
   std::vector<double> P = vanderlick_vn(E, cond);
-  return P;
+  std::vector<double> zeros(146, 1.0);
+  std::vector<double> N = conv_same(P, zeros);
+  print_debug(N);
 }
 
 template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
