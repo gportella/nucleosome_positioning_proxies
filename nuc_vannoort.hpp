@@ -19,6 +19,17 @@
 #include "nuc_elastic.hpp"
 #include <math.h>
 
+// check if char is not in string
+template <typename tt1> bool notNInside(tt1 seq) {
+  Iterator<Dna5String>::Type it = seqan::begin(seq);
+  Iterator<Dna5String>::Type itEnd = seqan::end(seq);
+  for (; it != itEnd; goNext(it)) {
+    if (getValue(it) == 'N') {
+      return false;
+    }
+  }
+  return true;
+}
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 //  Add window/2 zeros on either side of vector f
@@ -40,7 +51,6 @@ std::vector<tt1> add_zeros_padding(std::vector<tt1> const &f, tt2 win_l) {
 // for quick&dirty debugging
 ////////////////////////////////////////////////////////////////////////////////
 template <typename tt1> void print_debug(tt1 x) {
-
   for (auto &v : x) {
     std::cout << v << std::endl;
   }
@@ -143,7 +153,7 @@ std::vector<double> smooth_vn(tt1 x, tt2 w_len) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // Returns weight according to the prescribed periodicity functional form
-// by adding div and changing the sing of amplitude b you can generalize
+// by adding div and changing the sign of amplitude b you can generalize
 // the functional form for every dinucleotide (except CA, which is ctt)
 ////////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2, typename tt3, typename tt4>
@@ -350,9 +360,10 @@ template <typename tt1, typename tt2> void do_vannoort(tt1 seq, tt2 cond) {
 //  For each sequece get prediction of nuc occupancy and energy
 ///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
-#pragma omp parallel for
+  //#pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
-    if (length(seqs[i]) >= NUC_LEN) {
+    // filter for seqs longer than nuc_len and skip those with N
+    if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
       do_vannoort(seqs[i], cond);
     }
   }
