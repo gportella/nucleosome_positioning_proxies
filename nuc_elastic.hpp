@@ -42,6 +42,19 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems) {
   }
 }
 
+// TODO: create a period_elastic.hpp and move that there
+// plus other common functions
+// check if char is not in string
+template <typename tt1> bool notNInside(tt1 seq) {
+  Iterator<Dna5String>::Type it = seqan::begin(seq);
+  Iterator<Dna5String>::Type itEnd = seqan::end(seq);
+  for (; it != itEnd; goNext(it)) {
+    if (getValue(it) == 'N') {
+      return false;
+    }
+  }
+  return true;
+}
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 // Check if file exists
@@ -336,7 +349,7 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
   if (!cond.b_nuccore) {
 #pragma omp parallel for
     for (unsigned i = 0; i < length(seqs); ++i) {
-      if (length(seqs[i]) >= NUC_LEN) {
+      if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
         double min_E = do_min_elastic(seqs[i], tetra_model, di_model, nucref);
         min_elastic_v[i] = min_E;
       }
@@ -344,7 +357,7 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
   } else {
 #pragma omp parallel for
     for (unsigned i = 0; i < length(seqs); ++i) {
-      if (length(seqs[i]) >= NUC_LEN) {
+      if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
         double min_E =
             do_min_elastic(seqs[i], tetra_model, nucref, Tag_NucCore());
         min_elastic_v[i] = min_E;

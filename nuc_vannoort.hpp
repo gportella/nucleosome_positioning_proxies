@@ -19,17 +19,6 @@
 #include "nuc_elastic.hpp"
 #include <math.h>
 
-// check if char is not in string
-template <typename tt1> bool notNInside(tt1 seq) {
-  Iterator<Dna5String>::Type it = seqan::begin(seq);
-  Iterator<Dna5String>::Type itEnd = seqan::end(seq);
-  for (; it != itEnd; goNext(it)) {
-    if (getValue(it) == 'N') {
-      return false;
-    }
-  }
-  return true;
-}
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 //  Add window/2 zeros on either side of vector f
