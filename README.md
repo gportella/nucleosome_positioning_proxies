@@ -1,10 +1,8 @@
 
-# Compute dinucleotide (AA/TA/TT) periodicity, elastic energy to form a nucleosome, or prediction of nucleosome occupancy/free energy based on sequence periodicity
+# Computes  elastic energy to form a nucleosome, or prediction of nucleosome occupancy/free energy based on sequence periodicity
 
 For the analysis of multiple short sequences (~200 bp).
-Expects fasta file with one or more sequences, computes averaged periodicity
-of AA/TA/TT, or the minimum elastic energy of all possible nucleosomes
-that could be formed.  
+Expects fasta file with one or more sequences, 
 
 ## Elastic energy deformation
 
