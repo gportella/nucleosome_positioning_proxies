@@ -16,3 +16,26 @@ Based on "Sequence-based prediction of single nucleosome positioning and genome-
 
 The code is basically a 1-to-1 translation of a python script that  was sent to me by J. van Noort, without any mention of license. There are four parameters in the model. Two have been hardcoded as `#defines`, the other two are defaulted to the recommended values but can be changed.
 
+### Code requirements
+
+1. Seqan 2.2.0 (other versions untested, but probably fine)
+2. Eigen 3.3.0 (other versions untested, but probably fine)
+3. OpenMP (but could be removed with loss of functionality)
+
+
+### Install 
+
+```
+git@gitlab.com:guillemportella/periodic_elastic.git
+cd period_elastic
+```
+
+Fix the CMakeLists depending on your library location. 
+
+In clust1-headnode-1 this shoudl work
+
+```bash
+module load cmake/3.7.1 gcc/6.2.0 BOOST/1.56.0
+cmake3 . -DCMAKE_C_COMPILER=/home/portel01/programs/compilers/gcc-6.3/bin/gcc -DCMAKE_CXX_COMPILER=/home/portel01/programs/compilers/gcc-6.3/bin/g++
+```
+
