@@ -13,6 +13,7 @@ typedef struct my_conditions {
   unsigned int cutoff;
   unsigned int vn_window;
   double vn_mu;
+  unsigned int vn_smooth_window;
   bool b_elastic;
   bool b_vnoort;
   bool b_verbose;
@@ -31,6 +32,7 @@ struct Options {
   unsigned int num_rand;
   unsigned int vn_window;
   double vn_mu;
+  unsigned int vn_smooth_window;
 
   // I guess this is how to initialize
   Options()
@@ -86,6 +88,11 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
                      "The base window used to compute van Noort's prediction. "
                      "It should be either 74 or 147. The paper suggests 74.",
                      seqan::ArgParseArgument::INTEGER, "INTEGER"));
+  addOption(parser,
+            ArgParseOption("vn_smooth_window", "vannoort_smooth_window",
+                           "The number or bases to use as smoothing window"
+                           "The paper suggests 10.",
+                           seqan::ArgParseArgument::INTEGER, "INTEGER"));
   addOption(
       parser,
       ArgParseOption(
@@ -103,6 +110,7 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   setDefaultValue(parser, "cutoff", "50");
   setDefaultValue(parser, "vannoort_window", "74");
   setDefaultValue(parser, "vannoort_mu", "-1.5");
+  setDefaultValue(parser, "vannoort_smooth_window", "10");
   setDefaultValue(parser, "num_rand", "1000");
   setValidValues(parser, "result_file", "txt");
 
@@ -122,6 +130,8 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   getOptionValue(parseOptions.num_rand, parser, "num_rand");
   getOptionValue(parseOptions.vn_window, parser, "vannoort_window");
   getOptionValue(parseOptions.vn_mu, parser, "vannoort_mu");
+  getOptionValue(parseOptions.vn_smooth_window, parser,
+                 "vannoort_smooth_window");
   parseOptions.b_verbose = isSet(parser, "be_verbose");
   parseOptions.b_nuccore = isSet(parser, "only_nuccore");
   parseOptions.b_elastic = isSet(parser, "compute_elastic");
@@ -134,6 +144,11 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
 
   if (parseOptions.vn_window != 74 && parseOptions.vn_window != 147) {
     std::cerr << "Please select either 74 or 147 as the VanNoort window"
+              << std::endl;
+    exit(1);
+  }
+  if (parseOptions.vn_smooth_window > 100) {
+    std::cerr << "Please do not use a smoothing window larger than 100 bp."
               << std::endl;
     exit(1);
   }

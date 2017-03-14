@@ -282,7 +282,7 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
     EE.push_back((double)E);
   }
   // smooths
-  std::vector<double> E_smoothed = smooth_vn(EE, 10);
+  std::vector<double> E_smoothed = smooth_vn(EE, cond.vn_smooth_window);
   return E_smoothed;
 }
 
