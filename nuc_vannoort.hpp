@@ -72,6 +72,7 @@ template <typename tt1> void print_debug(tt1 x) {
 // moving from 2D to 1D (mind his code assumes vectorized 2D)
 // https://github.com/jeremyfix/FFTConvolution
 ///////////////////////////////////////////////////////////////////////////////
+// valid returns std::max(f.size(), g.size()) - std::min(f.size(), g.size()) + 1
 template <typename T>
 std::vector<T> conv_valid(std::vector<T> const &f, std::vector<T> const &g) {
   int const nf = f.size();
@@ -88,6 +89,8 @@ std::vector<T> conv_valid(std::vector<T> const &f, std::vector<T> const &g) {
   }
   return out;
 }
+///////////////////////////////////////////////////////////////////////////////
+// full returns size f.size() + g.size() - 1
 template <typename T>
 std::vector<T> conv_full(std::vector<T> const &f, std::vector<T> const &g) {
   int const nf = f.size();
@@ -103,31 +106,8 @@ std::vector<T> conv_full(std::vector<T> const &f, std::vector<T> const &g) {
   }
   return out;
 }
-// this returns a padding that is not exactly the same as numpy convolve,
-// but it seems to work as well
-// Same linear convolution, of size N
-/*
-for( i = 0 ; i < ws.h_dst ; ++i)
-{
-    low_k = std::max(0, i - int((ws.h_kernel-1.0)/2.0));
-    high_k = std::min(ws.h_src - 1, i + int(ws.h_kernel/2.0));
-    for( j = 0 ; j < ws.w_dst ; ++j)
-{
-        low_l = std::max(0, j - int((ws.w_kernel-1.0)/2.0));
-        high_l = std::min(ws.w_src - 1, j + int(ws.w_kernel/2.0));
-        temp = 0.0;
-        for( k = low_k ; k <= high_k ; ++k)
-{
-            for( l = low_l ; l <= high_l ; ++l)
-  {
-                temp += src[k*ws.w_src+l] *
-kernel[(i-k+int(ws.h_kernel/2.0))*ws.w_kernel + (j-l+int(ws.w_kernel/2.0))];
-  }
-}
-        ws.dst[i * ws.w_dst + j] = temp;
-}
-}
-*/
+///////////////////////////////////////////////////////////////////////////////
+// same returns size std::max(f.size(), g.size() )
 template <typename T>
 std::vector<T> conv_same(std::vector<T> const &f, std::vector<T> const &g) {
 
@@ -398,16 +378,20 @@ vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-//  For each sequece get prediction of nuc occupancy and energy
+// For each sequence gets prediction of nuc occupancy and energy
+// an averages the curves rescaled to [0,1]. It only outputs
 ///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2, typename tt3>
 void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
+
   std::vector<double> av_fe(NORM_OUT_L, 0.0);
   std::vector<double> av_occ(NORM_OUT_L, 0.0);
   // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
   std::vector<double> x_inter = linspace(0.0, 1., NORM_OUT_L);
   int count_curves = 0;
-  //#pragma omp parallel for
+  // this implementation (due to the averaging on the fly) does not allow
+  // for a parallel omp for (well, actually not a trivial one)
+  //  #pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
 
     // filters for seqs longer than nuc_len and skip those with N
@@ -432,13 +416,15 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
       count_curves++;
     }
   }
+  // only writes the files if it found something worth analysing
   if (count_curves > 0) {
     // normalize the curves
     std::transform(av_fe.begin(), av_fe.end(), av_fe.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
     std::transform(av_occ.begin(), av_occ.end(), av_occ.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
-    // output them
+
+    // output them, prepend a fe_ / occ_ to the specified output filename
     seqan::CharString out_fe_fn = "fe_";
     out_fe_fn += outfilename;
     write_xy(out_fe_fn, x_inter, av_fe);
