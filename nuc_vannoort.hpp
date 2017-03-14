@@ -105,17 +105,40 @@ std::vector<T> conv_full(std::vector<T> const &f, std::vector<T> const &g) {
 }
 // this returns a padding that is not exactly the same as numpy convolve,
 // but it seems to work as well
+// Same linear convolution, of size N
+/*
+for( i = 0 ; i < ws.h_dst ; ++i)
+{
+    low_k = std::max(0, i - int((ws.h_kernel-1.0)/2.0));
+    high_k = std::min(ws.h_src - 1, i + int(ws.h_kernel/2.0));
+    for( j = 0 ; j < ws.w_dst ; ++j)
+{
+        low_l = std::max(0, j - int((ws.w_kernel-1.0)/2.0));
+        high_l = std::min(ws.w_src - 1, j + int(ws.w_kernel/2.0));
+        temp = 0.0;
+        for( k = low_k ; k <= high_k ; ++k)
+{
+            for( l = low_l ; l <= high_l ; ++l)
+  {
+                temp += src[k*ws.w_src+l] *
+kernel[(i-k+int(ws.h_kernel/2.0))*ws.w_kernel + (j-l+int(ws.w_kernel/2.0))];
+  }
+}
+        ws.dst[i * ws.w_dst + j] = temp;
+}
+}
+*/
 template <typename T>
 std::vector<T> conv_same(std::vector<T> const &f, std::vector<T> const &g) {
 
   int const n = (f.size() > g.size()) ? f.size() : g.size();
   std::vector<T> out(n, T());
   for (unsigned i = 0; i < out.size(); ++i) {
-    int low_k = std::max(0, (int)i - (int)((g.size() - 1) / 2));
-    int high_k = std::min((int)f.size(), (int)i + (int)(g.size() / 2));
+    int low_k = std::max(0, (int)i - (int)((g.size() - 1.0) / 2.0));
+    int high_k = std::min((int)f.size() - 1, (int)i + (int)(g.size() / 2.0));
     double temp = 0.0;
     for (int k = low_k; k <= high_k; ++k) {
-      temp += f[k] * g[(i - k + (int)(g.size() / 2))];
+      temp += f[k] * g[(i - k + (int)(g.size() / 2.0))];
     }
     out[i] = temp;
   }
@@ -361,13 +384,8 @@ vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
   // here P returns well padded, has the same length as bases in the orginal seq
   std::vector<double> P = vanderlick_vn(E, cond);
   // convolute the provability (?) with footprint-1 (??) to get the occupancy
-  std::vector<double> zeros(NUC_LEN, 1.0);
-  // There seems to be a problem here, P is consistent but N sometimes gives
-  // unexpected results
-  // std::vector<double> N = conv_same(P, zeros);
-  // just for testing --> works fine, reproducible curves
-  std::vector<double> N = conv_full(P, zeros);
-  print_debug(N);
+  std::vector<double> zeros(NUC_LEN - 1, 1.0);
+  std::vector<double> N = conv_same(P, zeros);
   // add padding to E (recall it was smoothed), to print out
   std::vector<double> e_padded = add_zeros_padding(E, window);
 
@@ -402,7 +420,6 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
       // case that we get sequences of different length and it makes
       // sense to do so. Otherwise, just feed me seqs of the same length
       // get x coord of fe/occ normalized from 0 to 1
-      /*
       std::vector<double> vn_x_inter = linspace(0.0, 1., vn_results.fe.size());
       // interpolates fe and occ
       std::vector<double> interp_fe =
@@ -412,13 +429,11 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
       // adds to a vector containing the sum
       av_fe = brave_add_vector(av_fe, interp_fe);
       av_occ = brave_add_vector(av_occ, interp_occ);
-      */
       count_curves++;
     }
   }
   if (count_curves > 0) {
     // normalize the curves
-    /*
     std::transform(av_fe.begin(), av_fe.end(), av_fe.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
     std::transform(av_occ.begin(), av_occ.end(), av_occ.begin(),
@@ -430,7 +445,6 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
     seqan::CharString out_occ_fn = "occ_";
     out_occ_fn += outfilename;
     write_xy(out_occ_fn, x_inter, av_occ);
-    */
   } else {
     std::cout << "Did not find a suitable sequence to analyse, zero output"
               << std::endl;
