@@ -19,6 +19,7 @@
 
 #include "nuc_elastic.hpp"
 #include "utils_common.hpp"
+#include <errno.h>
 #include <math.h>
 
 #define PERIOD_VN 10.2   // parameters from Van Noort
@@ -26,6 +27,14 @@
 #define MAX_PROB 0.25    // this is the maximum probability for each base pair
 // the rest (window len and mu are read from command line, but unless you
 // have good reason (e.g. exploring), I would use the defaults.)
+
+#define NORM_OUT_L 1000 // we will interpolate/extrapolate to 1000 data points
+                        // the ouput profile
+
+typedef struct results_vn_nucpredict {
+  std::vector<double> fe;
+  std::vector<double> occ;
+} vn_nucpred;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -101,12 +110,12 @@ std::vector<T> conv_same(std::vector<T> const &f, std::vector<T> const &g) {
 
   int const n = (f.size() > g.size()) ? f.size() : g.size();
   std::vector<T> out(n, T());
-  for (int i = 0; i < out.size(); ++i) {
-    int low_k = std::max(0, i - (int)((g.size() - 1.0) / 2.0));
-    int high_k = std::min((int)f.size(), i + (int)(g.size() / 2));
+  for (unsigned i = 0; i < out.size(); ++i) {
+    int low_k = std::max(0, (int)i - (int)((g.size() - 1) / 2));
+    int high_k = std::min((int)f.size(), (int)i + (int)(g.size() / 2));
     double temp = 0.0;
     for (int k = low_k; k <= high_k; ++k) {
-      temp += f[k] * g[(i - k + (int)(g.size() / 2.0))];
+      temp += f[k] * g[(i - k + (int)(g.size() / 2))];
     }
     out[i] = temp;
   }
@@ -123,7 +132,7 @@ std::vector<double> smooth_vn(tt1 x, tt2 w_len) {
   // image the extremes of x : create mirrored copies of the ends
   // and paste together
   std::vector<double> b(w_len - 1);
-  for (int i = 0; i < w_len - 1; ++i) {
+  for (unsigned i = 0; i < w_len - 1; ++i) {
     b[i] = x[w_len - 1 - i];
   }
   std::vector<double> e(w_len - 1);
@@ -296,6 +305,7 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
   double mu = cond.vn_mu;
   int window = cond.vn_window;
   int footprint = NUC_LEN;
+  errno = 0;
   std::vector<double> E_out;
   for (const auto &e : E) {
     E_out.push_back(e - mu);
@@ -308,6 +318,10 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
       tmp += fwd[j];
     }
     fwd[i] = exp(E_out[i] - tmp);
+    if (errno == ERANGE) {
+      printf("exp(%f) overflows\n", E_out[i] - tmp);
+      exit(0);
+    }
   }
   std::vector<double> bwd(E.size(), 0.0);
   // reverse fwd vector
@@ -336,7 +350,8 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
 //  For a given sequence computes nucleosome occupancy and energy based on van
 //  Noort's approach.
 ///////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2> void do_vannoort(tt1 seq, tt2 cond) {
+template <typename tt1, typename tt2>
+vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
 
   // change this magic number to be obtained from cond
   int window = cond.vn_window;
@@ -346,24 +361,79 @@ template <typename tt1, typename tt2> void do_vannoort(tt1 seq, tt2 cond) {
   // here P returns well padded, has the same length as bases in the orginal seq
   std::vector<double> P = vanderlick_vn(E, cond);
   // convolute the provability (?) with footprint-1 (??) to get the occupancy
-  std::vector<double> zeros(NUC_LEN - 1, 1.0);
-  std::vector<double> N = conv_same(P, zeros);
+  std::vector<double> zeros(NUC_LEN, 1.0);
+  // There seems to be a problem here, P is consistent but N sometimes gives
+  // unexpected results
+  // std::vector<double> N = conv_same(P, zeros);
+  // just for testing --> works fine, reproducible curves
+  std::vector<double> N = conv_full(P, zeros);
+  print_debug(N);
   // add padding to E (recall it was smoothed), to print out
   std::vector<double> e_padded = add_zeros_padding(E, window);
-  print_debug(N);
+
+  vn_nucpred vn_results;
+  vn_results.fe = e_padded;
+  vn_results.occ = N;
+
+  return vn_results;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 //  For each sequece get prediction of nuc occupancy and energy
 ///////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2> void do_all_vannoort(tt1 seqs, tt2 cond) {
+template <typename tt1, typename tt2, typename tt3>
+void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
+  std::vector<double> av_fe(NORM_OUT_L, 0.0);
+  std::vector<double> av_occ(NORM_OUT_L, 0.0);
+  // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
+  std::vector<double> x_inter = linspace(0.0, 1., NORM_OUT_L);
+  int count_curves = 0;
   //#pragma omp parallel for
   for (unsigned i = 0; i < length(seqs); ++i) {
-    // filter for seqs longer than nuc_len and skip those with N
+
+    // filters for seqs longer than nuc_len and skip those with N
     if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
-      do_vannoort(seqs[i], cond);
+
+      vn_nucpred vn_results;
+      vn_results = do_vannoort(seqs[i], cond);
+
+      // sets all predictions on a common scale to average, in the
+      // case that we get sequences of different length and it makes
+      // sense to do so. Otherwise, just feed me seqs of the same length
+      // get x coord of fe/occ normalized from 0 to 1
+      /*
+      std::vector<double> vn_x_inter = linspace(0.0, 1., vn_results.fe.size());
+      // interpolates fe and occ
+      std::vector<double> interp_fe =
+          interp_linear(x_inter, vn_x_inter, vn_results.fe);
+      std::vector<double> interp_occ =
+          interp_linear(x_inter, vn_x_inter, vn_results.occ);
+      // adds to a vector containing the sum
+      av_fe = brave_add_vector(av_fe, interp_fe);
+      av_occ = brave_add_vector(av_occ, interp_occ);
+      */
+      count_curves++;
     }
+  }
+  if (count_curves > 0) {
+    // normalize the curves
+    /*
+    std::transform(av_fe.begin(), av_fe.end(), av_fe.begin(),
+                   std::bind2nd(std::divides<double>(), count_curves));
+    std::transform(av_occ.begin(), av_occ.end(), av_occ.begin(),
+                   std::bind2nd(std::divides<double>(), count_curves));
+    // output them
+    seqan::CharString out_fe_fn = "fe_";
+    out_fe_fn += outfilename;
+    write_xy(out_fe_fn, x_inter, av_fe);
+    seqan::CharString out_occ_fn = "occ_";
+    out_occ_fn += outfilename;
+    write_xy(out_occ_fn, x_inter, av_occ);
+    */
+  } else {
+    std::cout << "Did not find a suitable sequence to analyse, zero output"
+              << std::endl;
   }
 }
 

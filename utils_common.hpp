@@ -86,5 +86,109 @@ Dna5String genRandSeq(int lbp) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+// Adds two vectors, first checks if the are of the same length
+template <typename T>
+std::vector<T> safe_add_vector(std::vector<T> const &v1,
+                               std::vector<T> const &v2) {
+
+  std::vector<T> result(v1.size());
+
+  // better safe than sorry
+  if (v1.size() == v2.size()) {
+    // one could use boost's zip_iterator as well.
+    for (unsigned i = 0; i < v1.size(); ++i) {
+      result[i] = v1[i] + v2[i];
+    }
+
+  } else {
+    std::cerr << "Trying to add two vectors of different length." << std::endl;
+    std::cerr << "v1: " << v1.size() << " vs "
+              << "v2: " << v2.size() << std::endl;
+    exit(1);
+  }
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Adds two vectors, ASSUMES they are both of the same size. Use only if
+// you are completely sure that both have the same length or expect undefined
+// behaviour
+template <typename T>
+std::vector<T> brave_add_vector(std::vector<T> const &v1,
+                                std::vector<T> const &v2) {
+
+  std::vector<T> result(v1.size());
+
+  for (unsigned i = 0; i < v1.size(); ++i) {
+    result[i] = v1[i] + v2[i];
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// linspace  numpy-like
+template <typename T> std::vector<T> linspace(T a, T b, size_t N) {
+  T h = (b - a) / static_cast<T>(N - 1);
+  std::vector<T> xs(N);
+  typename std::vector<T>::iterator x;
+  T val;
+  for (x = xs.begin(), val = a; x != xs.end(); ++x, val += h)
+    *x = val;
+  return xs;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// linear interpolation
+// addapted from https://people.sc.fsu.edu/~jburkardt/cpp_src/interp/interp.html
+// IMPORTANT: does not take into account cases in which the x_range of both
+// x_ and x1 is different. If this is the case, you should change the code
+// and e.g. set everything to the left/rigth of x_ to x[0]/x[x.size()-1]
+///////////////////////////////////////////////////////////////////////////////
+template <typename tt1, typename tt2, typename tt3>
+void nearest_bracket0(tt1 x, tt2 xval, tt3 &left, tt3 &right) {
+  for (unsigned i = 2; i <= x.size() - 1; ++i) {
+    if (xval < x[i - 1]) {
+      left = i - 2;
+      right = i - 1;
+      return;
+    }
+  }
+  left = x.size() - 2;
+  right = x.size() - 1;
+  return;
+}
+
+template <typename T>
+std::vector<T> interp_linear(std::vector<T> const &x_, std::vector<T> const &x1,
+                             std::vector<T> const &y1) {
+  int left;
+  int right;
+  std::vector<T> result(x_.size());
+
+  for (unsigned i = 0; i < x_.size(); ++i) {
+    double t = x_[i];
+    //  Find the interval [ x1(LEFT), x1(RIGHT) ] that contains, or is
+    //  nearest to t
+    nearest_bracket0(x1, t, left, right);
+    result[i] = ((x1[right] - t) * y1[left] + (t - x1[left]) * y1[right]) /
+                (x1[right] - x1[left]);
+  }
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// write out x y
+template <typename tt1, typename tt2> void write_xy(tt1 fout, tt2 x, tt2 y) {
+  std::ofstream file;
+  file.open(toCString(fout));
+  for (unsigned i = 0; i < x.size(); ++i) {
+    file << x[i] << " " << y[i] << std::endl;
+  }
+  file.close();
+}
 
 #endif /* end protective inclusion */

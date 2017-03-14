@@ -93,7 +93,7 @@ int main(int argc, char const **argv) {
   if (!cond.b_elastic && !cond.b_vnoort) {
     do_all_periodic(dseqs, cond);
   } else if (cond.b_vnoort) {
-    do_all_vannoort(dseqs, cond);
+    do_all_vannoort(dseqs, cond, parseOptions.outFileName);
   } else {
     NNmodel tetrabp;
     NNmodel dinucp;
