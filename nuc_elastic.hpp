@@ -1,5 +1,6 @@
 #ifndef NUC_ELASTIC_H
 #define NUC_ELASTIC_H
+#include "utils_common.hpp"
 #include <Eigen/Dense>
 #include <fstream>
 #include <iostream>
@@ -34,6 +35,9 @@ typedef struct my_bpmodel {
   Vector6f eq;
 } NNmodel;
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// split string based on delimiter
 void split(const std::string &s, char delim, std::vector<std::string> &elems) {
   std::stringstream ss(s);
   std::string item;
@@ -42,19 +46,6 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems) {
   }
 }
 
-// TODO: create a period_elastic.hpp and move that there
-// plus other common functions
-// check if char is not in string
-template <typename tt1> bool notNInside(tt1 seq) {
-  Iterator<Dna5String>::Type it = seqan::begin(seq);
-  Iterator<Dna5String>::Type itEnd = seqan::end(seq);
-  for (; it != itEnd; goNext(it)) {
-    if (getValue(it) == 'N') {
-      return false;
-    }
-  }
-  return true;
-}
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 // Check if file exists
@@ -64,47 +55,10 @@ inline bool file_exists(const std::string &name) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Functions to get random sequence
 ///////////////////////////////////////////////////////////////////////////////
-
-typedef std::vector<char> char_array;
-char_array charset() {
-  // Change this to suit
-  return char_array({'A', 'T', 'C', 'G'});
-};
-
-// given a function that generates a random character,
-// return a string of the requested length
-std::string random_string(size_t length, std::function<char(void)> rand_char) {
-  std::string str(length, 0);
-  std::generate_n(str.begin(), length, rand_char);
-  return str;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-Dna5String genRandSeq(int lbp) {
-  // 0) create the character set.
-  //   yes, you can use an array here,
-  //   but a function is cleaner and more flexible
-  const auto ch_set = charset();
-
-  // 1) create a non-deterministic random number generator
-  std::default_random_engine rng(std::random_device{}());
-  // 2) create a random number "shaper" that will give
-  //   us uniformly distributed indices into the character set
-  std::uniform_int_distribution<> dist(0, ch_set.size() - 1);
-  // 3) create a function that ties them together, to get:
-  //   a non-deterministic uniform distribution from the
-  //   character set of your choice.
-  auto randchar = [ch_set, &dist, &rng]() { return ch_set[dist(rng)]; };
-
-  Dna5String seqout = random_string(lbp, randchar);
-  return seqout;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
+// Computes the elastic energy of a whole nucleosome considering tetranucleotide
+// steps everywhere except on the first/last basepairs. Those are computed using
+// the dinucleotide model.
 template <typename tt1, typename tt2, typename tt3, typename tt4>
 double nucElastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seq) {
   std::ostringstream sstrs;
@@ -135,7 +89,8 @@ double nucElastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seq) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
+// Computes the elastic energy of a nucleosome considering tetranucleotide
+// and only computing the energy from the core (74 base pairs around dyad).
 template <typename tt1, typename tt2, typename tt3>
 double nucElastic(tt1 tetra_model, tt2 nucref, tt3 seq,
                   Tag_NucCore const & /*Tag*/) {
@@ -217,7 +172,7 @@ Eigen::MatrixXf loadRefNuc() {
   // a bit dangerous, we should make sure
   // that there are no missing values, or too many
   // as it will segfault. I don't want to put an if
-  av.resize(146, 6);
+  av.resize(NUC_LEN - 1, 6);
   while (std::getline(ref, line)) {
     while ((pos = line.find(delimiter)) != std::string::npos) {
       av(i, j) = std::stod(line.substr(0, pos));
@@ -322,6 +277,9 @@ double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref) {
   }
   return min_elastic;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 template <typename tt1, typename tt2, typename tt3>
 double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,

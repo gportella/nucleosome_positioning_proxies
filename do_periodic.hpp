@@ -1,3 +1,7 @@
+
+
+#ifndef DO_PERIODIC_H
+#define DO_PERIODIC_H
 #include <algorithm> //for std::generate_n
 #include <boost/regex.hpp>
 #include <cfloat> // DBL_MAX
@@ -112,3 +116,5 @@ template <typename tt1, typename tt2> void do_all_periodic(tt1 seqs, tt2 cond) {
     i++;
   }
 }
+
+#endif /* end protective inclusion */

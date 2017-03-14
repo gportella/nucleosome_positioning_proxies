@@ -16,8 +16,16 @@
 
 #ifndef V_NOORT_H
 #define V_NOORT_H
+
 #include "nuc_elastic.hpp"
+#include "utils_common.hpp"
 #include <math.h>
+
+#define PERIOD_VN 10.2   // parameters from Van Noort
+#define AMPLITUDE_VN 0.2 // "
+#define MAX_PROB 0.25    // this is the maximum probability for each base pair
+// the rest (window len and mu are read from command line, but unless you
+// have good reason (e.g. exploring), I would use the defaults.)
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -150,7 +158,7 @@ std::vector<double> return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div) {
 
   std::vector<double> vect(w, 0);
   for (unsigned i = 0; i < w; ++i) {
-    vect[i] = 0.25 + b * sin(2 * M_PI * i / p) / div;
+    vect[i] = MAX_PROB + b * sin(2 * M_PI * i / p) / div;
   }
   return vect;
 }
@@ -162,15 +170,16 @@ std::vector<double> return_dinuc_weight(tt1 w, tt2 b, tt3 p, tt4 div) {
 template <typename tt1>
 std::vector<std::vector<std::vector<double>>> getweights(tt1 cond) {
 
-  unsigned window = 74;
-  float period = 10.2;
-  float amp = 0.2;
+  unsigned window = cond.vn_window;
+  float period = PERIOD_VN;
+  float amp = AMPLITUDE_VN;
+
   std::vector<double> AA = return_dinuc_weight(window, amp, period, 1.0);
   std::vector<double> AC = return_dinuc_weight(window, -amp, period, 3.0);
   std::vector<double> AG = AC;
   std::vector<double> AT = AC;
 
-  std::vector<double> CA(window, 0.25);
+  std::vector<double> CA(window, MAX_PROB);
   std::vector<double> CC = CA;
   std::vector<double> CG = CA;
   std::vector<double> CT = CA;
@@ -206,7 +215,7 @@ std::vector<std::vector<std::vector<double>>> getweights(tt1 cond) {
 ///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2>
 std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
-  unsigned window = 74;
+  unsigned window = cond.vn_window;
   // first one is special due to pbc and averaging done in original script
   // I want to avoid using anf if inside the loop, so I just make it explicit
   // notice how the two strands are slanted // offset by one in original code
@@ -284,8 +293,8 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
 ///////////////////////////////////////////////////////////////////////////////
 template <typename tt1, typename tt2>
 std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
-  double mu = -1.5;
-  int window = 74;
+  double mu = cond.vn_mu;
+  int window = cond.vn_window;
   int footprint = NUC_LEN;
   std::vector<double> E_out;
   for (const auto &e : E) {
@@ -330,7 +339,7 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
 template <typename tt1, typename tt2> void do_vannoort(tt1 seq, tt2 cond) {
 
   // change this magic number to be obtained from cond
-  int window = 74;
+  int window = cond.vn_window;
   //  Note that the energy is smoothed before being returned.
   //  but the data is not padded (e.g. lacks window/2 on either side)
   std::vector<double> E = calcE_vn(seq, cond);

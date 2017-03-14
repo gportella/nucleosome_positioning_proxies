@@ -47,6 +47,6 @@ add_definitions (${SEQAN_DEFINITIONS})
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -I/opt/local/include/libomp -fopenmp ")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS} -g -I/opt/local/include/libomp  -I/opt/local/include/eigen3 -fopenmp -Wall -Wextra -O3 ")
 
-add_executable (${code_name} ${code_name}.cpp do_periodic.hpp nuc_elastic.hpp nuc_vannoort.hpp commandline_parse.hpp )
+add_executable (${code_name} ${code_name}.cpp utils_common.hpp do_periodic.hpp nuc_elastic.hpp nuc_vannoort.hpp commandline_parse.hpp )
 target_link_libraries (${code_name} ${SEQAN_LIBRARIES} ${OpenPM_LIBRARIES} ${Boost_LIBRARIES} )
 

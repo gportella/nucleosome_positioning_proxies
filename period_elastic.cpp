@@ -1,7 +1,11 @@
+
+#ifndef PERIOD_ELASTIC_MAIN
+#define PERIOD_ELASTIC_MAIN
 #include "commandline_parse.hpp"
 #include "do_periodic.hpp"
 #include "nuc_elastic.hpp"
 #include "nuc_vannoort.hpp"
+#include "utils_common.hpp"
 #include <Eigen/Dense>
 #include <functional>
 #include <iostream>
@@ -15,17 +19,6 @@
 #include <stdlib.h>
 #include <string>
 #include <vector>
-
-template <typename tt1> bool checkArguments(tt1 cond) {
-  if (cond.cutoff > 147) {
-    std::cerr << "A cutoff longer than the length of a nucleosome does not "
-                 "make sense. "
-              << std::endl;
-    exit(0);
-  } else {
-    return true;
-  }
-}
 
 int main(int argc, char const **argv) {
 
@@ -55,7 +48,8 @@ int main(int argc, char const **argv) {
   std::map<std::string, NNmodel> tetra_bpmodel;
   std::map<std::string, NNmodel> dinuc_bpmodel;
 
-  conditionPeriodic cond = {parseOptions.cutoff, parseOptions.b_elastic,
+  conditionPeriodic cond = {parseOptions.cutoff,   parseOptions.vn_window,
+                            parseOptions.vn_mu,    parseOptions.b_elastic,
                             parseOptions.b_vnoort, parseOptions.b_verbose,
                             parseOptions.b_nuccore};
 
@@ -117,3 +111,5 @@ int main(int argc, char const **argv) {
 
   // caca
 }
+
+#endif /* end protective inclusion */
