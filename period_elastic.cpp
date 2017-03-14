@@ -2,7 +2,6 @@
 #ifndef PERIOD_ELASTIC_MAIN
 #define PERIOD_ELASTIC_MAIN
 #include "commandline_parse.hpp"
-#include "do_periodic.hpp"
 #include "nuc_elastic.hpp"
 #include "nuc_vannoort.hpp"
 #include "utils_common.hpp"
@@ -90,11 +89,9 @@ int main(int argc, char const **argv) {
 
   std::string fc_tetra = "stif_bsc1_k_avg_miniabc.dat";
   std::string fc_dinuc = "stif_bsc1_k_avg_miniabc_dinuc.dat";
-  if (!cond.b_elastic && !cond.b_vnoort) {
-    do_all_periodic(dseqs, cond);
-  } else if (cond.b_vnoort) {
+  if (cond.b_vnoort) {
     do_all_vannoort(dseqs, cond, parseOptions.outFileName);
-  } else {
+  } else if(cond.b_elastic){
     NNmodel tetrabp;
     NNmodel dinucp;
     if (loadBPModel(tetra_bpmodel, fc_tetra) &&
@@ -105,6 +102,9 @@ int main(int argc, char const **argv) {
     } else {
       exit(1);
     }
+  }else{
+	std::cerr << "You either need to set -elastic or -vnoort"<<std::endl;
+    exit(1);  
   }
   // caca
 
