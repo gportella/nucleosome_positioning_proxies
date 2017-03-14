@@ -2,7 +2,7 @@
 # Computes  elastic energy to form a nucleosome, or prediction of nucleosome occupancy/free energy based on sequence periodicity
 
 For the analysis of multiple short sequences (~200 bp).
-Expects fasta file with one or more sequences, 
+Expects fasta file with one or more sequences. Does the following calculations (one or the other depending on options defined in the command line):
 
 ## Elastic energy deformation
 
