@@ -47,11 +47,11 @@ int main(int argc, char const **argv) {
   std::map<std::string, NNmodel> tetra_bpmodel;
   std::map<std::string, NNmodel> dinuc_bpmodel;
 
-  conditionPeriodic cond = {
-      parseOptions.cutoff,    parseOptions.vn_window,
-      parseOptions.vn_mu,     parseOptions.vn_smooth_window,
-      parseOptions.b_elastic, parseOptions.b_vnoort,
-      parseOptions.b_verbose, parseOptions.b_nuccore};
+  conditionPeriodic cond = {parseOptions.cutoff,    parseOptions.vn_window,
+                            parseOptions.vn_mu,     parseOptions.smooth_window,
+                            parseOptions.b_elastic, parseOptions.b_elastic_prof,
+                            parseOptions.b_vnoort,  parseOptions.b_verbose,
+                            parseOptions.b_nuccore};
 
   if (b_verbose) {
     std::cout << "Set " << nProcessors << " OpenMP threads" << std::endl;
@@ -89,22 +89,31 @@ int main(int argc, char const **argv) {
 
   std::string fc_tetra = "stif_bsc1_k_avg_miniabc.dat";
   std::string fc_dinuc = "stif_bsc1_k_avg_miniabc_dinuc.dat";
-  if (cond.b_vnoort) {
+  if (cond.b_vnoort && !cond.b_elastic && !cond.b_elastic_prof) {
     do_all_vannoort(dseqs, cond, parseOptions.outFileName);
-  } else if(cond.b_elastic){
+  } else if (cond.b_elastic || cond.b_elastic_prof) {
     NNmodel tetrabp;
     NNmodel dinucp;
     if (loadBPModel(tetra_bpmodel, fc_tetra) &&
         loadBPModel(dinuc_bpmodel, fc_dinuc)) {
       Eigen::MatrixXf refnuc = loadRefNuc();
-      do_all_elastic(tetra_bpmodel, dinuc_bpmodel, refnuc, dseqs,
-                     parseOptions.outFileName, cond);
+      if (cond.b_elastic) {
+        do_all_elastic(tetra_bpmodel, dinuc_bpmodel, refnuc, dseqs,
+                       parseOptions.outFileName, cond);
+      } else if (cond.b_elastic_prof) {
+        do_all_elastic(tetra_bpmodel, dinuc_bpmodel, refnuc, dseqs,
+                       parseOptions.outFileName, cond, Tag_ElProf());
+      } else {
+        std::cerr << "Should not be here!" << std::endl;
+        exit(1);
+      }
     } else {
       exit(1);
     }
-  }else{
-	std::cerr << "You either need to set -elastic or -vnoort"<<std::endl;
-    exit(1);  
+  } else {
+    std::cerr << "You either need to set -elastic, -el_profile or -vnoort"
+              << std::endl;
+    exit(1);
   }
   // caca
 

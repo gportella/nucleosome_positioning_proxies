@@ -36,22 +36,6 @@ typedef struct results_vn_nucpredict {
   std::vector<double> occ;
 } vn_nucpred;
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-//  Add window/2 zeros on either side of vector f
-///////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2>
-std::vector<tt1> add_zeros_padding(std::vector<tt1> const &f, tt2 win_l) {
-
-  unsigned half_w = (unsigned)(ceil(win_l / 2.));
-  std::vector<double> zeros(half_w, 0.0);
-  std::vector<double> z_padded;
-  z_padded.insert(std::end(z_padded), std::begin(zeros), std::end(zeros));
-  z_padded.insert(std::end(z_padded), std::begin(f), std::end(f));
-  z_padded.insert(std::end(z_padded), std::begin(zeros), std::end(zeros));
-  return z_padded;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // for quick&dirty debugging
@@ -61,102 +45,6 @@ template <typename tt1> void print_debug(tt1 x) {
     std::cout << v << std::endl;
   }
   std::cout << "&" << std::endl;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-// Convolution code, copied from:
-// -> For 'valid' and 'full' directly from StackOverflow
-// http://stackoverflow.com/a/24519913
-// -> For 'same' it was addapted it from code found here
-// moving from 2D to 1D (mind his code assumes vectorized 2D)
-// https://github.com/jeremyfix/FFTConvolution
-///////////////////////////////////////////////////////////////////////////////
-// valid returns std::max(f.size(), g.size()) - std::min(f.size(), g.size()) + 1
-template <typename T>
-std::vector<T> conv_valid(std::vector<T> const &f, std::vector<T> const &g) {
-  int const nf = f.size();
-  int const ng = g.size();
-  std::vector<T> const &min_v = (nf < ng) ? f : g;
-  std::vector<T> const &max_v = (nf < ng) ? g : f;
-  int const n = std::max(nf, ng) - std::min(nf, ng) + 1;
-  std::vector<T> out(n, T());
-  for (auto i(0); i < n; ++i) {
-    for (int j(min_v.size() - 1), k(i); j >= 0; --j) {
-      out[i] += min_v[j] * max_v[k];
-      ++k;
-    }
-  }
-  return out;
-}
-///////////////////////////////////////////////////////////////////////////////
-// full returns size f.size() + g.size() - 1
-template <typename T>
-std::vector<T> conv_full(std::vector<T> const &f, std::vector<T> const &g) {
-  int const nf = f.size();
-  int const ng = g.size();
-  int const n = nf + ng - 1;
-  std::vector<T> out(n, T());
-  for (auto i(0); i < n; ++i) {
-    int const jmn = (i >= ng - 1) ? i - (ng - 1) : 0;
-    int const jmx = (i < nf - 1) ? i : nf - 1;
-    for (auto j(jmn); j <= jmx; ++j) {
-      out[i] += (f[j] * g[i - j]);
-    }
-  }
-  return out;
-}
-///////////////////////////////////////////////////////////////////////////////
-// same returns size std::max(f.size(), g.size() )
-template <typename T>
-std::vector<T> conv_same(std::vector<T> const &f, std::vector<T> const &g) {
-
-  int const n = (f.size() > g.size()) ? f.size() : g.size();
-  std::vector<T> out(n, T());
-  for (unsigned i = 0; i < out.size(); ++i) {
-    int low_k = std::max(0, (int)i - (int)((g.size() - 1.0) / 2.0));
-    int high_k = std::min((int)f.size() - 1, (int)i + (int)(g.size() / 2.0));
-    double temp = 0.0;
-    for (int k = low_k; k <= high_k; ++k) {
-      temp += f[k] * g[(i - k + (int)(g.size() / 2.0))];
-    }
-    out[i] = temp;
-  }
-  return out;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-// this should do exactly the same smoothing as vanNoort
-////////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2>
-std::vector<double> smooth_vn(tt1 x, tt2 w_len) {
-
-  // image the extremes of x : create mirrored copies of the ends
-  // and paste together
-  std::vector<double> b(w_len - 1);
-  for (unsigned i = 0; i < w_len - 1; ++i) {
-    b[i] = x[w_len - 1 - i];
-  }
-  std::vector<double> e(w_len - 1);
-  for (unsigned i = 0; i < w_len - 1; ++i) {
-    e[i] = x[x.size() - 1 - i];
-  }
-  std::vector<double> s;
-  s.insert(std::end(s), std::begin(b), std::end(b));
-  s.insert(std::end(s), std::begin(x), std::end(x));
-  s.insert(std::end(s), std::begin(e), std::end(e));
-
-  // convolute extended curve with square window
-  double norm_weight = 1.0 / (double)w_len;
-  std::vector<double> w(w_len, norm_weight);
-  std::vector<double> y = conv_valid(s, w);
-  std::vector<double> smoothed(x.size());
-  // return ignoring the added w_len - 1
-  for (unsigned i = 0; i < x.size(); ++i) {
-    smoothed[i] = y[w_len - 1 + i];
-  }
-  return smoothed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -294,7 +182,7 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
     EE.push_back((double)E);
   }
   // smooths
-  std::vector<double> E_smoothed = smooth_vn(EE, cond.vn_smooth_window);
+  std::vector<double> E_smoothed = smooth_box(EE, cond.smooth_window);
   return E_smoothed;
 }
 

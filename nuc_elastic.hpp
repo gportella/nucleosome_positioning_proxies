@@ -22,13 +22,15 @@
 
 #define NUC_LEN 147
 #define NUC_CORE 74
-
+#define ELASTIC_NORM_L 1000 // interpolate/extrapolate to 1000 data points
+                            // the ouput profile
 using namespace seqan;
 
 typedef Eigen::Matrix<float, 6, 6> Matrix6f;
 typedef Eigen::Matrix<float, 6, 1> Vector6f;
 
 struct Tag_NucCore {};
+struct Tag_ElProf {};
 
 typedef struct my_bpmodel {
   Matrix6f fct;
@@ -262,7 +264,7 @@ template <typename tt1, typename tt2> void dumpResults(tt1 fout, tt2 res) {
 }
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-// Compute the minimum elastic energy of all possible nucleosomes
+// Compute the minimum elastic energy of all possible nucleosomes, whole nuc
 
 template <typename tt1, typename tt2, typename tt3, typename tt4>
 double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref) {
@@ -280,6 +282,7 @@ double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+// only compute mimimum energy of the sequence, only nuc core
 
 template <typename tt1, typename tt2, typename tt3>
 double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,
@@ -294,6 +297,48 @@ double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,
     }
   }
   return min_elastic;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Here for the whole profile, all the nucleosome
+
+template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5>
+std::vector<double> do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 di_model,
+                                    tt4 nucref, tt5 cond) {
+  Infix<Dna5String>::Type seq_i;
+  std::vector<double> profile;
+  for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
+    seq_i = infix(seq, i, i + NUC_LEN);
+    double E_nuc = nucElastic(tetra_model, di_model, nucref, seq_i);
+    profile.push_back(E_nuc);
+  }
+  std::vector<double> prof_smoothed = smooth_box(profile, cond.smooth_window);
+  int window = NUC_LEN;
+  std::vector<double> prof_padded = add_zeros_padding(prof_smoothed, window);
+  return prof_padded;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Here for the whole profile, nucleosome core only
+
+template <typename tt1, typename tt2, typename tt3, typename tt4>
+std::vector<double> do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,
+                                    tt4 cond, Tag_NucCore const & /*Tag*/) {
+  Infix<Dna5String>::Type seq_i;
+  std::vector<double> profile;
+  for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
+    seq_i = infix(seq, i, i + NUC_LEN);
+    double E_nuc = nucElastic(tetra_model, nucref, seq_i, Tag_NucCore());
+    profile.push_back(E_nuc);
+  }
+  // smooths -- I borrow the smooth setting from vn_smooth_window, rather
+  // than usic 10 as the magic number...
+  std::vector<double> prof_smoothed = smooth_box(profile, cond.smooth_window);
+  int window = NUC_CORE;
+  std::vector<double> prof_padded = add_zeros_padding(prof_smoothed, window);
+  return prof_padded;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -322,8 +367,73 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
       }
     }
   }
+
   // write the result
   dumpResults(outfile, min_elastic_v);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5,
+          typename tt6>
+void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
+                    tt5 outfile, tt6 cond, Tag_ElProf const & /*Tag*/) {
+
+  std::vector<double> av_prof(ELASTIC_NORM_L, 0.0);
+  // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
+  std::vector<double> x_inter = linspace(0.0, 1., ELASTIC_NORM_L);
+  int count_curves = 0;
+  // TODO: I need to learn how to do a openmp reduce...
+  std::vector<double> min_elastic_v(length(seqs), 0.0);
+  if (!cond.b_nuccore) {
+    //#pragma omp parallel for
+    for (unsigned i = 0; i < length(seqs); ++i) {
+      if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
+        std::vector<double> E_prof =
+            do_prof_elastic(seqs[i], tetra_model, di_model, nucref, cond);
+        // sets all predictions on a common scale to average, in the
+        // case that we get sequences of different length and it makes
+        // sense to do so. Otherwise, just feed me seqs of the same length
+        // get x coord of fe/occ normalized from 0 to 1
+        std::vector<double> el_x_inter = linspace(0.0, 1., E_prof.size());
+        // interpolates
+        std::vector<double> interp_el_prof =
+            interp_linear(x_inter, el_x_inter, E_prof);
+        // adds to the vect containing the sum
+        av_prof = brave_add_vector(av_prof, interp_el_prof);
+        count_curves++;
+      }
+    }
+  } else {
+    //#pragma omp parallel for
+    for (unsigned i = 0; i < length(seqs); ++i) {
+      if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
+        std::vector<double> E_prof =
+            do_prof_elastic(seqs[i], tetra_model, nucref, cond, Tag_NucCore());
+        // sets all predictions on a common scale to average, in the
+        // case that we get sequences of different length and it makes
+        // sense to do so. Otherwise, just feed me seqs of the same length
+        // get x coord of fe/occ normalized from 0 to 1
+        std::vector<double> el_x_inter = linspace(0.0, 1., E_prof.size());
+        // interpolates
+        std::vector<double> interp_el_prof =
+            interp_linear(x_inter, el_x_inter, E_prof);
+        // adds to the vect containing the sum
+        av_prof = brave_add_vector(av_prof, interp_el_prof);
+        count_curves++;
+      }
+    }
+  }
+  // only writes the files if it found something worth analysing
+  if (count_curves > 0) {
+    // normalize the curves
+    std::transform(av_prof.begin(), av_prof.end(), av_prof.begin(),
+                   std::bind2nd(std::divides<double>(), count_curves));
+    write_xy(outfile, x_inter, av_prof);
+  } else {
+    std::cout << "Did not find a suitable sequence to analyse, zero output"
+              << std::endl;
+  }
 }
 
 #endif /* end protective inclusion */
