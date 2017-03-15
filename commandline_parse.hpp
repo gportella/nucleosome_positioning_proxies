@@ -105,7 +105,7 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
                      "How many random sequences of 147 base pairs to generate",
                      seqan::ArgParseArgument::INTEGER, "INTEGER"));
   setDefaultValue(parser, "result_file", "out_analysis.txt");
-  setValidValues(parser, "sequence_file", "fna fa fq fna.gz fasta fa.gz fq.gz");
+  setValidValues(parser, "sequence_file", "fna fa fq fna.gz fasta fa.gz fasta.bz2 fa.bz2 fq.bz2 fq.gz");
   setDefaultValue(parser, "cutoff", "50");
   setDefaultValue(parser, "vannoort_window", "74");
   setDefaultValue(parser, "vannoort_mu", "-1.5");

@@ -12,6 +12,7 @@ project (${code_name} )
 set(CMAKE_MODULE_PATH /Users/portel01/programs/seqan-library-2.3.1/share/cmake/Modules) 
 set(CMAKE_PREFIX_PATH /Users/portel01/programs/seqan-library-2.3.1)
 find_package (ZLIB)
+find_package (BZip2)
 # Would be nice to add an ifdef depending on the machie
 execute_process(COMMAND hostname OUTPUT_VARIABLE computer_name)
 find_package (SeqAn REQUIRED)
