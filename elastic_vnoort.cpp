@@ -47,11 +47,11 @@ int main(int argc, char const **argv) {
   std::map<std::string, NNmodel> tetra_bpmodel;
   std::map<std::string, NNmodel> dinuc_bpmodel;
 
-  conditionPeriodic cond = {parseOptions.cutoff,    parseOptions.vn_window,
-                            parseOptions.vn_mu,     parseOptions.smooth_window,
-                            parseOptions.b_elastic, parseOptions.b_elastic_prof,
-                            parseOptions.b_vnoort,  parseOptions.b_verbose,
-                            parseOptions.b_nuccore};
+  conditionPeriodic cond = {
+      parseOptions.vn_window,      parseOptions.vn_mu,
+      parseOptions.smooth_window,  parseOptions.b_elastic,
+      parseOptions.b_elastic_prof, parseOptions.b_vnoort,
+      parseOptions.b_verbose,      parseOptions.b_nuccore};
 
   if (b_verbose) {
     std::cout << "Set " << nProcessors << " OpenMP threads" << std::endl;
@@ -64,7 +64,6 @@ int main(int argc, char const **argv) {
     b_fastq = true;
   }
 
-  checkArguments(cond);
   // randomly genereate or read them
   if (parseOptions.b_random) {
     for (unsigned i = 0; i < parseOptions.num_rand; ++i) {

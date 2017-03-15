@@ -10,7 +10,6 @@ using namespace seqan;
 
 // for the conditions
 typedef struct my_conditions {
-  unsigned int cutoff;
   unsigned int vn_window;
   double vn_mu;
   unsigned int smooth_window;
@@ -30,7 +29,6 @@ struct Options {
   bool b_nuccore;
   CharString needlesFileName;
   CharString outFileName;
-  unsigned int cutoff;
   unsigned int num_rand;
   unsigned int vn_window;
   double vn_mu;
@@ -64,9 +62,6 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   addOption(parser, ArgParseOption("o", "result_file", "Output histogram. ",
                                    ArgParseArgument::OUTPUT_FILE));
 
-  addOption(parser,
-            ArgParseOption("c", "cutoff", "How far to search for matches .",
-                           seqan::ArgParseArgument::INTEGER, "INTEGER"));
   addOption(parser, ArgParseOption("v", "be_verbose", "Be verbose in "
                                                       "what you do."));
   addOption(parser, ArgParseOption("elastic", "compute_elastic",
@@ -115,7 +110,6 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   setDefaultValue(parser, "result_file", "out_analysis.txt");
   setValidValues(parser, "sequence_file",
                  "fna fa fq fna.gz fasta fa.gz fasta.bz2 fa.bz2 fq.bz2 fq.gz");
-  setDefaultValue(parser, "cutoff", "50");
   setDefaultValue(parser, "vannoort_window", "74");
   setDefaultValue(parser, "vannoort_mu", "-1.5");
   setDefaultValue(parser, "prof_smooth_window", "10");
@@ -134,7 +128,6 @@ ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
   // Extract option values.
   getOptionValue(parseOptions.needlesFileName, parser, "sequence_file");
   getOptionValue(parseOptions.outFileName, parser, "result_file");
-  getOptionValue(parseOptions.cutoff, parser, "cutoff");
   getOptionValue(parseOptions.num_rand, parser, "num_rand");
   getOptionValue(parseOptions.vn_window, parser, "vannoort_window");
   getOptionValue(parseOptions.vn_mu, parser, "vannoort_mu");
