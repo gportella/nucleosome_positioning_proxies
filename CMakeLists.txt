@@ -2,7 +2,7 @@
 cmake_minimum_required (VERSION 3.5.0)
 
 # Name of project and that it is C++ only.
-set(code_name "period_elastic")
+set(code_name "elastic_vnoort")
 project (${code_name} )
 
 # ----------------------------------------------------------------------------
@@ -15,9 +15,9 @@ find_package (ZLIB)
 # Would be nice to add an ifdef depending on the machie
 execute_process(COMMAND hostname OUTPUT_VARIABLE computer_name)
 find_package (SeqAn REQUIRED)
+find_package (OpenMP REQUIRED)
 set (OpenMP_C_FLAGS /opt/local/lib/libomp )
 set (OpenMP_CXX_FLAGS /opt/local/lib/libomp )
-find_package (OpenMP REQUIRED)
 
 
 # ----------------------------------------------------------------------------

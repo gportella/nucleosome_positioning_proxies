@@ -43,12 +43,11 @@ struct Options {
 ArgumentParser::ParseResult parseCommandLine(Options &parseOptions, int argc,
                                              char const **argv) {
   // Setup ArgumentParser.
-  ArgumentParser parser("period_elastic");
-  setShortDescription(parser, "Finds dinucleotide periodicity | nucleosome "
+  ArgumentParser parser("elastic_vnoort");
+  setShortDescription(parser, "Finds nucleosome "
                               "elastic energy or occupancy.");
   addDescription(parser,
-                 "Finds dinucleotide periodicity "
-                 "for AA/TA/AT, compute nucleosome elastic energy or"
+                 " Computes nucleosome elastic energy or"
                  "compute prediction of nucleosome occupancy/FE based on"
                  "van Noort's method.");
   addUsageLine(parser, "[\\fIOPTIONS\\fP] ");
