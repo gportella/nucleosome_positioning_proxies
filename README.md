@@ -23,6 +23,11 @@ The code is basically a 1-to-1 translation of a python script that  was sent to 
 3. OpenMP (but could be removed with loss of functionality)
 
 
+### **TODO** list
+1. If the exp calculation in vnoort overflows, do not stop the program. Just skip this 
+curve and try with the next one. This means catching the error, reporting it back
+to the calling function and do not increment the average/curve_counter.
+
 ### Install 
 
 ```
