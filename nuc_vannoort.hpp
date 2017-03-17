@@ -296,6 +296,7 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
       // let's protect ourselfs from exp overflows in vanderlick
       try {
 
+        // this should throw the exp-overflow exception if it fails
         vn_results = do_vannoort(seqs[i], cond);
         // sets all predictions on a common scale to average, in the
         // case that we get sequences of different length and it makes
