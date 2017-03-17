@@ -210,8 +210,7 @@ std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
     }
     fwd[i] = exp(E_out[i] - tmp);
     if (errno == ERANGE) {
-      printf("exp(%f) overflows\n", E_out[i] - tmp);
-      exit(0);
+      throw std::overflow_error("exponential overflow");
     }
   }
   std::vector<double> bwd(E.size(), 0.0);
@@ -250,7 +249,15 @@ vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
   //  but the data is not padded (e.g. lacks window/2 on either side)
   std::vector<double> E = calcE_vn(seq, cond);
   // here P returns well padded, has the same length as bases in the orginal seq
-  std::vector<double> P = vanderlick_vn(E, cond);
+  // vanderlick could overflow due to exponential calculation, catch it
+  std::vector<double> P;
+  try {
+    P = vanderlick_vn(E, cond);
+  } catch (const std::exception &e) {
+    std::cerr << "Caught " << e.what() << std::endl;
+    // rethrow
+    throw std::overflow_error("overflow in vanderlick");
+  }
   // convolute the provability (?) with footprint-1 (??) to get the occupancy
   std::vector<double> zeros(NUC_LEN - 1, 1.0);
   std::vector<double> N = conv_same(P, zeros);
@@ -286,22 +293,32 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
     if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
 
       vn_nucpred vn_results;
-      vn_results = do_vannoort(seqs[i], cond);
+      // let's protect ourselfs from exp overflows in vanderlick
+      try {
 
-      // sets all predictions on a common scale to average, in the
-      // case that we get sequences of different length and it makes
-      // sense to do so. Otherwise, just feed me seqs of the same length
-      // get x coord of fe/occ normalized from 0 to 1
-      std::vector<double> vn_x_inter = linspace(0.0, 1., vn_results.fe.size());
-      // interpolates fe and occ
-      std::vector<double> interp_fe =
-          interp_linear(x_inter, vn_x_inter, vn_results.fe);
-      std::vector<double> interp_occ =
-          interp_linear(x_inter, vn_x_inter, vn_results.occ);
-      // adds to a vector containing the sum
-      av_fe = brave_add_vector(av_fe, interp_fe);
-      av_occ = brave_add_vector(av_occ, interp_occ);
-      count_curves++;
+        vn_results = do_vannoort(seqs[i], cond);
+        // sets all predictions on a common scale to average, in the
+        // case that we get sequences of different length and it makes
+        // sense to do so. Otherwise, just feed me seqs of the same length
+        // get x coord of fe/occ normalized from 0 to 1
+        std::vector<double> vn_x_inter =
+            linspace(0.0, 1., vn_results.fe.size());
+        // interpolates fe and occ
+        std::vector<double> interp_fe =
+            interp_linear(x_inter, vn_x_inter, vn_results.fe);
+        std::vector<double> interp_occ =
+            interp_linear(x_inter, vn_x_inter, vn_results.occ);
+        // adds to a vector containing the sum
+        av_fe = brave_add_vector(av_fe, interp_fe);
+        av_occ = brave_add_vector(av_occ, interp_occ);
+        count_curves++;
+
+      } catch (const std::exception &e) {
+        std::cerr << "Caught rethrowing " << e.what() << ", skipping curve."
+                  << std::endl;
+        // skip this iteration
+        continue;
+      }
     }
   }
   // only writes the files if it found something worth analysing
