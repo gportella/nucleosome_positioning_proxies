@@ -280,6 +280,7 @@ template <typename tt1, typename tt2, typename tt3>
 void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
 
   std::vector<double> av_fe(NORM_OUT_L, 0.0);
+  std::vector<double> Z(NORM_OUT_L, 0.0); // Z == partition function
   std::vector<double> av_occ(NORM_OUT_L, 0.0);
   // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
   std::vector<double> x_inter = linspace(0.0, 1., NORM_OUT_L);
@@ -309,9 +310,23 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
             interp_linear(x_inter, vn_x_inter, vn_results.fe);
         std::vector<double> interp_occ =
             interp_linear(x_inter, vn_x_inter, vn_results.occ);
+        // let's do Boltzman averaging, compute the exponential first
+        // defined in utils_common
+        std::vector<double> exp_fe = exp_vect(interp_fe);
+        std::vector<double> exp_occ = exp_vect(interp_fe);
+        // in place scale inter_fe by the exponential, element wise
+        std::transform(exp_fe.begin(), exp_fe.end(), interp_fe.begin(),
+                       interp_fe.begin(), std::multiplies<double>());
+        // we do the same for occupancy, multiply by Boltzman factor
+        std::transform(exp_fe.begin(), exp_fe.end(), interp_occ.begin(),
+                       interp_occ.begin(), std::multiplies<double>());
+
         // adds to a vector containing the sum
         av_fe = brave_add_vector(av_fe, interp_fe);
         av_occ = brave_add_vector(av_occ, interp_occ);
+        // and for the partition function Z
+        Z = brave_add_vector(Z, exp_fe);
+
         count_curves++;
 
       } catch (const std::exception &e) {
@@ -325,10 +340,17 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
   // only writes the files if it found something worth analysing
   if (count_curves > 0) {
     // normalize the curves
+    /* THIS WAS FOR LINEAR AVERAGE, COMMENTED OUT
     std::transform(av_fe.begin(), av_fe.end(), av_fe.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
     std::transform(av_occ.begin(), av_occ.end(), av_occ.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
+     */
+    // normalize
+    std::transform(av_fe.begin(), av_fe.end(), Z.begin(), av_fe.begin(),
+                   std::divides<double>());
+    std::transform(av_occ.begin(), av_occ.end(), Z.begin(), av_occ.begin(),
+                   std::divides<double>());
 
     // output them, prepend a fe_ / occ_ to the specified output filename
     seqan::CharString out_fe_fn = "fe_";

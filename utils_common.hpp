@@ -18,8 +18,21 @@ using namespace seqan;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-//  Add window/2 zeros on either side of vector f
+// exponentiate, any faster than loops? hard to believe
+// from http://stackoverflow.com/a/40642375
+struct op {
+  double operator()(double d) const { return std::exp(d); }
+};
+std::vector<double> exp_vect(const std::vector<double> &x) {
+  const int n = x.size();
+  std::vector<double> y(n);
+  std::transform(x.begin(), x.end(), y.begin(), op());
+  return y;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//  Add window/2 zeros on either side of vector f
 template <typename tt1, typename tt2>
 std::vector<tt1> add_zeros_padding(std::vector<tt1> const &f, tt2 win_l) {
 
