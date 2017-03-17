@@ -312,8 +312,10 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
             interp_linear(x_inter, vn_x_inter, vn_results.occ);
         // let's do Boltzman averaging, compute the exponential first
         // defined in utils_common
+        // TROUBLE is that due to padding of FE with 0s, the borders have a
+        // weight of 1.... which means linear averaging... Somehow I still
+        // have a big peak in some places.
         std::vector<double> exp_fe = exp_vect(interp_fe);
-        std::vector<double> exp_occ = exp_vect(interp_fe);
         // in place scale inter_fe by the exponential, element wise
         std::transform(exp_fe.begin(), exp_fe.end(), interp_fe.begin(),
                        interp_fe.begin(), std::multiplies<double>());
@@ -321,7 +323,7 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
         std::transform(exp_fe.begin(), exp_fe.end(), interp_occ.begin(),
                        interp_occ.begin(), std::multiplies<double>());
 
-        // adds to a vector containing the sum
+        // adds to a vector containing the sum, do not check dimensions
         av_fe = brave_add_vector(av_fe, interp_fe);
         av_occ = brave_add_vector(av_occ, interp_occ);
         // and for the partition function Z
@@ -346,7 +348,7 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
     std::transform(av_occ.begin(), av_occ.end(), av_occ.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
      */
-    // normalize
+    // normalize by partition function Z
     std::transform(av_fe.begin(), av_fe.end(), Z.begin(), av_fe.begin(),
                    std::divides<double>());
     std::transform(av_occ.begin(), av_occ.end(), Z.begin(), av_occ.begin(),

@@ -1,5 +1,10 @@
 
 # TODO
+
+## Bugs
+1. Writing files to other directories than the pwd does not work, as it tries to 
+append `"fe_"` and `"occ_"` on the wrong name.
+
 ## Missing implementation
 1. Perform Boltzmann averaging rather than "linear" averaging.
 

@@ -380,6 +380,7 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
                     tt5 outfile, tt6 cond, Tag_ElProf const & /*Tag*/) {
 
   std::vector<double> av_prof(ELASTIC_NORM_L, 0.0);
+  std::vector<double> Z(ELASTIC_NORM_L, 0.0); // Z = partition function
   // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
   std::vector<double> x_inter = linspace(0.0, 1., ELASTIC_NORM_L);
   int count_curves = 0;
@@ -399,8 +400,22 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
         // interpolates
         std::vector<double> interp_el_prof =
             interp_linear(x_inter, el_x_inter, E_prof);
-        // adds to the vect containing the sum
+        // let's do Boltzman averaging, compute the exponential first
+        // defined in utils_common
+        // TROUBLE is that due to padding of FE with 0s, the borders have a
+        // weight of 1.... which means linear averaging... Somehow I still
+        // have a big peak in some places.
+        // we normalize first, to avoid overflows
+        std::transform(interp_el_prof.begin(), interp_el_prof.end(),
+                       interp_el_prof.begin(),
+                       std::bind2nd(std::multiplies<double>(), NUC_LEN));
+        std::vector<double> exp_e = exp_vect(interp_el_prof);
+        std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
+                       interp_el_prof.begin(), std::multiplies<double>());
+
         av_prof = brave_add_vector(av_prof, interp_el_prof);
+        // and for the partition function Z
+        Z = brave_add_vector(Z, exp_e);
         count_curves++;
       }
     }
@@ -418,8 +433,16 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
         // interpolates
         std::vector<double> interp_el_prof =
             interp_linear(x_inter, el_x_inter, E_prof);
+        // see code above, Boltzman average
+        std::transform(interp_el_prof.begin(), interp_el_prof.end(),
+                       interp_el_prof.begin(),
+                       std::bind2nd(std::multiplies<double>(), NUC_CORE));
+        std::vector<double> exp_e = exp_vect(interp_el_prof);
+        std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
+                       interp_el_prof.begin(), std::multiplies<double>());
         // adds to the vect containing the sum
         av_prof = brave_add_vector(av_prof, interp_el_prof);
+        Z = brave_add_vector(Z, exp_e);
         count_curves++;
       }
     }
@@ -427,8 +450,14 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
   // only writes the files if it found something worth analysing
   if (count_curves > 0) {
     // normalize the curves
+
+    /*
     std::transform(av_prof.begin(), av_prof.end(), av_prof.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
+                  */
+    // normalize by partition function Z
+    std::transform(av_prof.begin(), av_prof.end(), Z.begin(), av_prof.begin(),
+                   std::divides<double>());
     write_xy(outfile, x_inter, av_prof);
   } else {
     std::cout << "Did not find a suitable sequence to analyse, zero output"
