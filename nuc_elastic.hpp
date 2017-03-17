@@ -408,7 +408,7 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
         // we normalize first, to avoid overflows
         std::transform(interp_el_prof.begin(), interp_el_prof.end(),
                        interp_el_prof.begin(),
-                       std::bind2nd(std::multiplies<double>(), NUC_LEN));
+                       std::bind2nd(std::divides<double>(), NUC_LEN));
         std::vector<double> exp_e = exp_vect(interp_el_prof);
         std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
                        interp_el_prof.begin(), std::multiplies<double>());
@@ -436,7 +436,7 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
         // see code above, Boltzman average
         std::transform(interp_el_prof.begin(), interp_el_prof.end(),
                        interp_el_prof.begin(),
-                       std::bind2nd(std::multiplies<double>(), NUC_CORE));
+                       std::bind2nd(std::divides<double>(), NUC_CORE));
         std::vector<double> exp_e = exp_vect(interp_el_prof);
         std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
                        interp_el_prof.begin(), std::multiplies<double>());

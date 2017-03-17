@@ -248,10 +248,11 @@ vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
   //  Note that the energy is smoothed before being returned.
   //  but the data is not padded (e.g. lacks window/2 on either side)
   std::vector<double> E = calcE_vn(seq, cond);
-  // here P returns well padded, has the same length as bases in the orginal seq
   // vanderlick could overflow due to exponential calculation, catch it
   std::vector<double> P;
   try {
+    // here P returns well padded, has the same length as bases in the orginal
+    // seq
     P = vanderlick_vn(E, cond);
   } catch (const std::exception &e) {
     std::cerr << "Caught " << e.what() << std::endl;
@@ -280,7 +281,7 @@ template <typename tt1, typename tt2, typename tt3>
 void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
 
   std::vector<double> av_fe(NORM_OUT_L, 0.0);
-  std::vector<double> Z(NORM_OUT_L, 0.0); // Z == partition function
+  std::vector<double> Z(NORM_OUT_L, 0.0); // Z = partition function
   std::vector<double> av_occ(NORM_OUT_L, 0.0);
   // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
   std::vector<double> x_inter = linspace(0.0, 1., NORM_OUT_L);
