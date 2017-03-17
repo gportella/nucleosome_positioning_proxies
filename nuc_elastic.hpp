@@ -37,6 +37,11 @@ typedef struct my_bpmodel {
   Vector6f eq;
 } NNmodel;
 
+typedef struct results_el_nucpredict {
+  std::vector<double> e;
+  std::vector<double> occ;
+} el_nucpred;
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 // split string based on delimiter
@@ -304,19 +309,39 @@ double do_min_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,
 // Here for the whole profile, all the nucleosome
 
 template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5>
-std::vector<double> do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 di_model,
-                                    tt4 nucref, tt5 cond) {
+el_nucpred do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref,
+                           tt5 cond) {
   Infix<Dna5String>::Type seq_i;
-  std::vector<double> profile;
+  std::vector<double> E_profile;
   for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
     seq_i = infix(seq, i, i + NUC_LEN);
     double E_nuc = nucElastic(tetra_model, di_model, nucref, seq_i);
-    profile.push_back(E_nuc);
+    E_profile.push_back(E_nuc);
   }
-  std::vector<double> prof_smoothed = smooth_box(profile, cond.smooth_window);
+  std::vector<double> prof_smoothed = smooth_box(E_profile, cond.smooth_window);
+  // vanderlick could overflow due to exponential calculation, catch it
+  std::vector<double> P;
+  try {
+    // here P returns well padded, has the same length as bases in the orginal
+    // sequence
+    P = vanderlick_vn(E_profile, cond);
+  } catch (const std::exception &e) {
+    std::cerr << "Caught " << e.what() << std::endl;
+    // rethrow
+    throw std::overflow_error("overflow in vanderlick");
+  }
+  // convolute the provability (?) with footprint-1 (??) to get the occupancy
+  std::vector<double> zeros(NUC_LEN - 1, 1.0);
+  std::vector<double> N = conv_same(P, zeros);
+  // add padding to E (recall it was smoothed), to print out
   int window = NUC_LEN;
-  std::vector<double> prof_padded = add_zeros_padding(prof_smoothed, window);
-  return prof_padded;
+  std::vector<double> e_padded = add_zeros_padding(prof_smoothed, window);
+
+  el_nucpred el_results;
+  el_results.e = e_padded;
+  el_results.occ = N;
+
+  return el_results;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -384,14 +409,17 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
   // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
   std::vector<double> x_inter = linspace(0.0, 1., ELASTIC_NORM_L);
   int count_curves = 0;
+  el_nucpred el_results;
   // TODO: I need to learn how to do a openmp reduce...
-  std::vector<double> min_elastic_v(length(seqs), 0.0);
   if (!cond.b_nuccore) {
     //#pragma omp parallel for
     for (unsigned i = 0; i < length(seqs); ++i) {
       if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
-        std::vector<double> E_prof =
+        // TODO:: add try/catch
+        el_results =
             do_prof_elastic(seqs[i], tetra_model, di_model, nucref, cond);
+        std::vector<double> E_prof = el_results.e;
+        std::vector<double> Occ_prof = el_results.occ;
         // sets all predictions on a common scale to average, in the
         // case that we get sequences of different length and it makes
         // sense to do so. Otherwise, just feed me seqs of the same length
@@ -423,6 +451,8 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
     //#pragma omp parallel for
     for (unsigned i = 0; i < length(seqs); ++i) {
       if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
+
+        // TODO: copy the same as above (e.g. try/catch, el_results...)
         std::vector<double> E_prof =
             do_prof_elastic(seqs[i], tetra_model, nucref, cond, Tag_NucCore());
         // sets all predictions on a common scale to average, in the

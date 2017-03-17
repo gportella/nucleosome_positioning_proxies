@@ -188,55 +188,6 @@ std::vector<double> calcE_vn(tt1 seq, tt2 cond) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-// Computes Vanderlick's solution to the Percus equation
-// Again, 1-to-1 copy of van Noort's code
-///////////////////////////////////////////////////////////////////////////////
-template <typename tt1, typename tt2>
-std::vector<double> vanderlick_vn(tt1 E, tt2 cond) {
-  double mu = cond.vn_mu;
-  int window = cond.vn_window;
-  int footprint = NUC_LEN;
-  errno = 0;
-  std::vector<double> E_out;
-  for (const auto &e : E) {
-    E_out.push_back(e - mu);
-  }
-  std::vector<double> fwd(E.size(), 0);
-  for (unsigned i = 0; i < E.size(); ++i) {
-    double tmp = 0.0;
-    int i_max = std::max(((int)i - footprint), 0);
-    for (unsigned j = i_max; j < i; ++j) {
-      tmp += fwd[j];
-    }
-    fwd[i] = exp(E_out[i] - tmp);
-    if (errno == ERANGE) {
-      throw std::overflow_error("exponential overflow");
-    }
-  }
-  std::vector<double> bwd(E.size(), 0.0);
-  // reverse fwd vector
-  std::vector<double> r_fwd(fwd.rbegin(), fwd.rend());
-  for (unsigned i = 0; i < E.size(); ++i) {
-    double tmp = 0;
-    int i_max = std::max(((int)i - footprint), 0);
-    for (unsigned j = i_max; j < i; ++j) {
-      tmp += r_fwd[j] * bwd[j];
-    }
-    bwd[i] = 1.0 - tmp;
-  }
-  std::vector<double> P(E.size(), 0);
-  // bwd is reversed in place, we don't need it anymore
-  std::reverse(bwd.begin(), bwd.end());
-  for (unsigned i = 0; i < E.size(); ++i) {
-    P[i] = fwd[i] * bwd[i];
-  }
-  // add padding windows/2 at begining and end to center nucleosome center
-  std::vector<double> P_final = add_zeros_padding(P, window);
-  return P_final;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 //  For a given sequence computes nucleosome occupancy and energy based on van
 //  Noort's approach.
 ///////////////////////////////////////////////////////////////////////////////
@@ -252,7 +203,7 @@ vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
   std::vector<double> P;
   try {
     // here P returns well padded, has the same length as bases in the orginal
-    // seq
+    // sequence
     P = vanderlick_vn(E, cond);
   } catch (const std::exception &e) {
     std::cerr << "Caught " << e.what() << std::endl;
