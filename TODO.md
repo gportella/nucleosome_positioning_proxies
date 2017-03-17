@@ -6,7 +6,7 @@
 append `"fe_"` and `"occ_"` on the wrong name.
 
 ## Missing implementation
-1. Perform Boltzmann averaging rather than "linear" averaging.
+1. Add Vanderlick to elastic 
 
 ## Would be nice
 1. Add OpenMP custom reduction to implement parallel averaging of curves in
