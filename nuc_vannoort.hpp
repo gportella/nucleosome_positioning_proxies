@@ -204,7 +204,7 @@ vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
   try {
     // here P returns well padded, has the same length as bases in the orginal
     // sequence
-    P = vanderlick_vn(E, cond);
+    P = vanderlick(E, cond);
   } catch (const std::exception &e) {
     std::cerr << "Caught " << e.what() << std::endl;
     // rethrow
@@ -267,19 +267,19 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
         // TROUBLE is that due to padding of FE with 0s, the borders have a
         // weight of 1.... which means linear averaging... Somehow I still
         // have a big peak in some places.
-        std::vector<double> exp_fe = exp_vect(interp_fe);
+        // std::vector<double> exp_fe = exp_vect(interp_fe);
         // in place scale inter_fe by the exponential, element wise
-        std::transform(exp_fe.begin(), exp_fe.end(), interp_fe.begin(),
-                       interp_fe.begin(), std::multiplies<double>());
+        // std::transform(exp_fe.begin(), exp_fe.end(), interp_fe.begin(),
+        //              interp_fe.begin(), std::multiplies<double>());
         // we do the same for occupancy, multiply by Boltzman factor
-        std::transform(exp_fe.begin(), exp_fe.end(), interp_occ.begin(),
-                       interp_occ.begin(), std::multiplies<double>());
+        // std::transform(exp_fe.begin(), exp_fe.end(), interp_occ.begin(),
+        //               interp_occ.begin(), std::multiplies<double>());
 
         // adds to a vector containing the sum, do not check dimensions
         av_fe = brave_add_vector(av_fe, interp_fe);
         av_occ = brave_add_vector(av_occ, interp_occ);
         // and for the partition function Z
-        Z = brave_add_vector(Z, exp_fe);
+        // Z = brave_add_vector(Z, exp_fe);
 
         count_curves++;
 
@@ -294,17 +294,17 @@ void do_all_vannoort(tt1 seqs, tt2 cond, tt3 outfilename) {
   // only writes the files if it found something worth analysing
   if (count_curves > 0) {
     // normalize the curves
-    /* THIS WAS FOR LINEAR AVERAGE, COMMENTED OUT
     std::transform(av_fe.begin(), av_fe.end(), av_fe.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
     std::transform(av_occ.begin(), av_occ.end(), av_occ.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
-     */
+    /* THIS WAS FOR Boltzman COMMENTED OUT
     // normalize by partition function Z
     std::transform(av_fe.begin(), av_fe.end(), Z.begin(), av_fe.begin(),
                    std::divides<double>());
     std::transform(av_occ.begin(), av_occ.end(), Z.begin(), av_occ.begin(),
                    std::divides<double>());
+     */
 
     // output them, prepend a fe_ / occ_ to the specified output filename
     seqan::CharString out_fe_fn = "fe_";

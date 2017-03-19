@@ -319,12 +319,16 @@ el_nucpred do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref,
     E_profile.push_back(E_nuc);
   }
   std::vector<double> prof_smoothed = smooth_box(E_profile, cond.smooth_window);
+  // normalize by the nuc_len to avoid problems of overflows in exp
+  std::transform(prof_smoothed.begin(), prof_smoothed.end(),
+                 prof_smoothed.begin(),
+                 std::bind2nd(std::divides<double>(), NUC_LEN));
   // vanderlick could overflow due to exponential calculation, catch it
   std::vector<double> P;
   try {
     // here P returns well padded, has the same length as bases in the orginal
     // sequence
-    P = vanderlick_vn(E_profile, cond);
+    P = vanderlick(prof_smoothed, cond);
   } catch (const std::exception &e) {
     std::cerr << "Caught " << e.what() << std::endl;
     // rethrow
@@ -349,8 +353,8 @@ el_nucpred do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref,
 // Here for the whole profile, nucleosome core only
 
 template <typename tt1, typename tt2, typename tt3, typename tt4>
-std::vector<double> do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,
-                                    tt4 cond, Tag_NucCore const & /*Tag*/) {
+el_nucpred do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 nucref, tt4 cond,
+                           Tag_NucCore const & /*Tag*/) {
   Infix<Dna5String>::Type seq_i;
   std::vector<double> profile;
   for (unsigned i = 0; i < length(seq) - NUC_LEN + 1; ++i) {
@@ -361,9 +365,33 @@ std::vector<double> do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 nucref,
   // smooths -- I borrow the smooth setting from vn_smooth_window, rather
   // than usic 10 as the magic number...
   std::vector<double> prof_smoothed = smooth_box(profile, cond.smooth_window);
+  // normalize by the nuc_len to avoid problems of overflows in exp
+  std::transform(prof_smoothed.begin(), prof_smoothed.end(),
+                 prof_smoothed.begin(),
+                 std::bind2nd(std::divides<double>(), NUC_CORE));
+  // vanderlick could overflow due to exponential calculation, catch it
+  std::vector<double> P;
+  try {
+    // here P returns well padded, has the same length as bases in the orginal
+    // sequence
+    P = vanderlick(prof_smoothed, cond);
+  } catch (const std::exception &e) {
+    std::cerr << "Caught " << e.what() << std::endl;
+    // rethrow
+    throw std::overflow_error("overflow in vanderlick");
+  }
+  // convolute the provability (?) with footprint-1 (??) to get the occupancy
+  std::vector<double> zeros(NUC_CORE - 1, 1.0);
+  std::vector<double> N = conv_same(P, zeros);
+  // add padding to E (recall it was smoothed), to print out
   int window = NUC_CORE;
-  std::vector<double> prof_padded = add_zeros_padding(prof_smoothed, window);
-  return prof_padded;
+  std::vector<double> e_padded = add_zeros_padding(prof_smoothed, window);
+
+  el_nucpred el_results;
+  el_results.e = e_padded;
+  el_results.occ = N;
+
+  return el_results;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -404,76 +432,109 @@ template <typename tt1, typename tt2, typename tt3, typename tt4, typename tt5,
 void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
                     tt5 outfile, tt6 cond, Tag_ElProf const & /*Tag*/) {
 
-  std::vector<double> av_prof(ELASTIC_NORM_L, 0.0);
-  std::vector<double> Z(ELASTIC_NORM_L, 0.0); // Z = partition function
+  std::vector<double> av_e_prof(ELASTIC_NORM_L, 0.0);
+  std::vector<double> av_occ_prof(ELASTIC_NORM_L, 0.0);
+  // std::vector<double> Z(ELASTIC_NORM_L, 0.0); // Z = partition function
   // x value of the interpolation, from 0 to 1 with NORM_OUT_L datapoints
   std::vector<double> x_inter = linspace(0.0, 1., ELASTIC_NORM_L);
   int count_curves = 0;
-  el_nucpred el_results;
-  // TODO: I need to learn how to do a openmp reduce...
+
   if (!cond.b_nuccore) {
     //#pragma omp parallel for
+    std::cout << "Going for whole nuc" << std::endl;
     for (unsigned i = 0; i < length(seqs); ++i) {
-      if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
-        // TODO:: add try/catch
-        el_results =
-            do_prof_elastic(seqs[i], tetra_model, di_model, nucref, cond);
-        std::vector<double> E_prof = el_results.e;
-        std::vector<double> Occ_prof = el_results.occ;
-        // sets all predictions on a common scale to average, in the
-        // case that we get sequences of different length and it makes
-        // sense to do so. Otherwise, just feed me seqs of the same length
-        // get x coord of fe/occ normalized from 0 to 1
-        std::vector<double> el_x_inter = linspace(0.0, 1., E_prof.size());
-        // interpolates
-        std::vector<double> interp_el_prof =
-            interp_linear(x_inter, el_x_inter, E_prof);
-        // let's do Boltzman averaging, compute the exponential first
-        // defined in utils_common
-        // TROUBLE is that due to padding of FE with 0s, the borders have a
-        // weight of 1.... which means linear averaging... Somehow I still
-        // have a big peak in some places.
-        // we normalize first, to avoid overflows
-        std::transform(interp_el_prof.begin(), interp_el_prof.end(),
-                       interp_el_prof.begin(),
-                       std::bind2nd(std::divides<double>(), NUC_LEN));
-        std::vector<double> exp_e = exp_vect(interp_el_prof);
-        std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
-                       interp_el_prof.begin(), std::multiplies<double>());
 
-        av_prof = brave_add_vector(av_prof, interp_el_prof);
-        // and for the partition function Z
-        Z = brave_add_vector(Z, exp_e);
-        count_curves++;
+      if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
+        std::cout << "Trying" << std::endl;
+        el_nucpred el_results;
+        // let's protect ourselfs from exp overflows in vanderlick
+        try {
+
+          // TODO:: add try/catch
+          el_results =
+              do_prof_elastic(seqs[i], tetra_model, di_model, nucref, cond);
+          std::vector<double> E_prof = el_results.e;
+          std::vector<double> occ_prof = el_results.occ;
+          // sets all predictions on a common scale to average, in the
+          // case that we get sequences of different length and it makes
+          // sense to do so. Otherwise, just feed me seqs of the same length
+          // get x coord of fe/occ normalized from 0 to 1
+          std::vector<double> el_x_inter = linspace(0.0, 1., E_prof.size());
+          // interpolates
+          std::vector<double> interp_el_prof =
+              interp_linear(x_inter, el_x_inter, E_prof);
+          std::vector<double> interp_occ_prof =
+              interp_linear(x_inter, el_x_inter, occ_prof);
+          // let's do Boltzman averaging, compute the exponential first
+          // defined in utils_common
+          // TROUBLE is that due to padding of FE with 0s, the borders have a
+          // weight of 1.... which means linear averaging... Somehow I still
+          // have a big peak in some places.
+          // we normalize first, to avoid overflows
+          /*
+          std::vector<double> exp_e = exp_vect(interp_el_prof);
+          std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
+                         interp_el_prof.begin(), std::multiplies<double>());
+            */
+
+          av_e_prof = brave_add_vector(av_e_prof, interp_el_prof);
+          av_occ_prof = brave_add_vector(av_occ_prof, interp_occ_prof);
+          // and for the partition function Z
+          // Z = brave_add_vector(Z, exp_e);
+          count_curves++;
+        } catch (const std::exception &e) {
+          std::cerr << "Caught rethrowing " << e.what() << ", skipping curve."
+                    << std::endl;
+          // skip this iteration
+          continue;
+        }
       }
     }
   } else {
+    // DO CALC WITH NUCCORE
     //#pragma omp parallel for
+    std::cout << "Going for nuccore" << std::endl;
     for (unsigned i = 0; i < length(seqs); ++i) {
       if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
+        el_nucpred el_results;
+        // let's protect ourselfs from exp overflows in vanderlick
+        try {
 
-        // TODO: copy the same as above (e.g. try/catch, el_results...)
-        std::vector<double> E_prof =
-            do_prof_elastic(seqs[i], tetra_model, nucref, cond, Tag_NucCore());
-        // sets all predictions on a common scale to average, in the
-        // case that we get sequences of different length and it makes
-        // sense to do so. Otherwise, just feed me seqs of the same length
-        // get x coord of fe/occ normalized from 0 to 1
-        std::vector<double> el_x_inter = linspace(0.0, 1., E_prof.size());
-        // interpolates
-        std::vector<double> interp_el_prof =
-            interp_linear(x_inter, el_x_inter, E_prof);
-        // see code above, Boltzman average
-        std::transform(interp_el_prof.begin(), interp_el_prof.end(),
-                       interp_el_prof.begin(),
-                       std::bind2nd(std::divides<double>(), NUC_CORE));
-        std::vector<double> exp_e = exp_vect(interp_el_prof);
-        std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
-                       interp_el_prof.begin(), std::multiplies<double>());
-        // adds to the vect containing the sum
-        av_prof = brave_add_vector(av_prof, interp_el_prof);
-        Z = brave_add_vector(Z, exp_e);
-        count_curves++;
+          // TODO: copy the same as above (e.g. try/catch, el_results...)
+          el_results = do_prof_elastic(seqs[i], tetra_model, nucref, cond,
+                                       Tag_NucCore());
+          std::vector<double> E_prof = el_results.e;
+          std::vector<double> occ_prof = el_results.occ;
+          // sets all predictions on a common scale to average, in the
+          // case that we get sequences of different length and it makes
+          // sense to do so. Otherwise, just feed me seqs of the same length
+          // get x coord of fe/occ normalized from 0 to 1
+          std::vector<double> el_x_inter = linspace(0.0, 1., E_prof.size());
+          // interpolates
+          std::vector<double> interp_el_prof =
+              interp_linear(x_inter, el_x_inter, E_prof);
+          std::vector<double> interp_occ_prof =
+              interp_linear(x_inter, el_x_inter, occ_prof);
+          /* We rather use the linear avearge, actually
+          // see code above, Boltzman average
+          std::transform(interp_el_prof.begin(), interp_el_prof.end(),
+                         interp_el_prof.begin(),
+                         std::bind2nd(std::divides<double>(), NUC_CORE));
+          std::vector<double> exp_e = exp_vect(interp_el_prof);
+          std::transform(exp_e.begin(), exp_e.end(), interp_el_prof.begin(),
+                         interp_el_prof.begin(), std::multiplies<double>());
+          */
+          // adds to the vect containing the sum
+          av_e_prof = brave_add_vector(av_e_prof, interp_el_prof);
+          av_occ_prof = brave_add_vector(av_occ_prof, interp_occ_prof);
+          // Z = brave_add_vector(Z, exp_e);
+          count_curves++;
+        } catch (const std::exception &e) {
+          std::cerr << "Caught rethrowing " << e.what() << ", skipping curve."
+                    << std::endl;
+          // skip this iteration
+          continue;
+        }
       }
     }
   }
@@ -481,14 +542,23 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
   if (count_curves > 0) {
     // normalize the curves
 
-    /*
-    std::transform(av_prof.begin(), av_prof.end(), av_prof.begin(),
+    std::transform(av_e_prof.begin(), av_e_prof.end(), av_e_prof.begin(),
                    std::bind2nd(std::divides<double>(), count_curves));
-                  */
+    std::transform(av_occ_prof.begin(), av_occ_prof.end(), av_occ_prof.begin(),
+                   std::bind2nd(std::divides<double>(), count_curves));
+    /*
     // normalize by partition function Z
-    std::transform(av_prof.begin(), av_prof.end(), Z.begin(), av_prof.begin(),
+    std::transform(av_prof.begin(), av_prof.end(), Z.begin(),
+    av_prof.begin(),
                    std::divides<double>());
-    write_xy(outfile, x_inter, av_prof);
+      */
+    // output them, prepend a fe_ / occ_ to the specified output filename
+    seqan::CharString out_e_fn = "e_elastic_";
+    out_e_fn += outfile;
+    write_xy(out_e_fn, x_inter, av_e_prof);
+    seqan::CharString out_occ_fn = "occ_elastic_";
+    out_occ_fn += outfile;
+    write_xy(out_occ_fn, x_inter, av_occ_prof);
   } else {
     std::cout << "Did not find a suitable sequence to analyse, zero output"
               << std::endl;
