@@ -335,8 +335,8 @@ el_nucpred do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 di_model, tt4 nucref,
     throw std::overflow_error("overflow in vanderlick");
   }
   // convolute the provability (?) with footprint-1 (??) to get the occupancy
-  std::vector<double> zeros(NUC_LEN - 1, 1.0);
-  std::vector<double> N = conv_same(P, zeros);
+  std::vector<double> ones(NUC_LEN - 1, 1.0);
+  std::vector<double> N = conv_same(P, ones);
   // add padding to E (recall it was smoothed), to print out
   int window = NUC_LEN;
   std::vector<double> e_padded = add_zeros_padding(prof_smoothed, window);
@@ -381,8 +381,8 @@ el_nucpred do_prof_elastic(tt1 seq, tt2 tetra_model, tt3 nucref, tt4 cond,
     throw std::overflow_error("overflow in vanderlick");
   }
   // convolute the provability (?) with footprint-1 (??) to get the occupancy
-  std::vector<double> zeros(NUC_CORE - 1, 1.0);
-  std::vector<double> N = conv_same(P, zeros);
+  std::vector<double> ones(NUC_CORE - 1, 1.0);
+  std::vector<double> N = conv_same(P, ones);
   // add padding to E (recall it was smoothed), to print out
   int window = NUC_CORE;
   std::vector<double> e_padded = add_zeros_padding(prof_smoothed, window);
@@ -441,11 +441,9 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
 
   if (!cond.b_nuccore) {
     //#pragma omp parallel for
-    std::cout << "Going for whole nuc" << std::endl;
     for (unsigned i = 0; i < length(seqs); ++i) {
 
       if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
-        std::cout << "Trying" << std::endl;
         el_nucpred el_results;
         // let's protect ourselfs from exp overflows in vanderlick
         try {
@@ -493,7 +491,6 @@ void do_all_elastic(tt1 tetra_model, tt2 di_model, tt3 nucref, tt4 seqs,
   } else {
     // DO CALC WITH NUCCORE
     //#pragma omp parallel for
-    std::cout << "Going for nuccore" << std::endl;
     for (unsigned i = 0; i < length(seqs); ++i) {
       if (length(seqs[i]) >= NUC_LEN && notNInside(seqs[i])) {
         el_nucpred el_results;

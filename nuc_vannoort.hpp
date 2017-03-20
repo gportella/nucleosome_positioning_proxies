@@ -211,8 +211,8 @@ vn_nucpred do_vannoort(tt1 seq, tt2 cond) {
     throw std::overflow_error("overflow in vanderlick");
   }
   // convolute the provability (?) with footprint-1 (??) to get the occupancy
-  std::vector<double> zeros(NUC_LEN - 1, 1.0);
-  std::vector<double> N = conv_same(P, zeros);
+  std::vector<double> ones(NUC_LEN - 1, 1.0);
+  std::vector<double> N = conv_same(P, ones);
   // add padding to E (recall it was smoothed), to print out
   std::vector<double> e_padded = add_zeros_padding(E, window);
 
