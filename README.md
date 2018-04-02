@@ -1,5 +1,7 @@
 
-# Compute dinucleotide (AA/TA/TT) periodicity, elastic energy to form a nucleosome, or prediction of nucleosome occupancy/free energy based on sequence periodicity
+# Tools to assess the intrinsic nucleosome positioning from sequence information alone.
+
+Computes dinucleotide (AA/TA/TT) periodicity, elastic energy to form a nucleosome, and a prediction of nucleosome occupancy/free energy based on sequence periodicity
 
 For the analysis of multiple short sequences (~200 bp).
 Expects fasta file with one or more sequences, computes averaged periodicity
